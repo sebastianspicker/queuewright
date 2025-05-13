@@ -10,5 +10,8 @@
   },
   "keywords": [
     "release"
+  ],
+  "_kilo_change_markers": [
+    "forced-release-2:test"
   ]
 }
