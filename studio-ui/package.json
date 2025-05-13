@@ -1,0 +1,17 @@
+{
+  "name": "queuewright",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm typecheck && pnpm test"
+  },
+  "keywords": [
+    "release"
+  ],
+  "_kilo_change_markers": [
+    "forced-release-2:test"
+  ]
+}
