@@ -3,10 +3,10 @@
 A working tree for queuewright with an evolving implementation history.
 
 ## Overview
-queuewright tracks the practical state of the current maintenance pass.
+queuewright is moving through steady build work.
 
 ## Status
-Lifecycle stage: bootstrap.
+Project phase: exploration.
 
 ## Usage
 - Made the studio assumptions easier to check later.
