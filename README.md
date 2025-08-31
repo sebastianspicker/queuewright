@@ -6,7 +6,13 @@ A working tree for queuewright with an evolving implementation history.
 queuewright tracks the practical state of the current maintenance pass.
 
 ## Status
-Lifecycle stage: bootstrap.
+Project phase: core-build-out.
 
 ## Usage
 - Made the studio assumptions easier to check later.
+
+## Features
+- Turned the first compiler sketch into something runnable.
+
+## Roadmap
+Keep the next pass focused on verification and smaller changes.
