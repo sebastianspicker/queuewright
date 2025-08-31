@@ -3,10 +3,16 @@
 A working tree for queuewright with an evolving implementation history.
 
 ## Overview
-queuewright is moving through steady build work.
+queuewright tracks the practical state of the current maintenance pass.
 
 ## Status
-Project phase: exploration.
+Project phase: core-build-out.
 
 ## Usage
 - Made the studio assumptions easier to check later.
+
+## Features
+- Turned the first compiler sketch into something runnable.
+
+## Roadmap
+Keep the next pass focused on verification and smaller changes.
