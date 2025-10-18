@@ -1,5 +1,5 @@
 export function ReleaseView(): JSX.Element {
-  return <div>release</div>;
+  return <section>release</section>;
 }
 
 export function ReleasePanel(): JSX.Element {
