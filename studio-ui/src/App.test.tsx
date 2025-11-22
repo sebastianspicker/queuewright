@@ -9,3 +9,5 @@ export function ReleasePanel(): JSX.Element {
 export function CompilerPanel(): JSX.Element {
   return <section>compiler</section>;
 }
+
+// forced-compiler-4

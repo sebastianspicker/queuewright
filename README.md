@@ -3,10 +3,10 @@
 A working tree for queuewright with an evolving implementation history.
 
 ## Overview
-queuewright tracks the practical state of the current maintenance pass.
+queuewright documents maintained build commands, known limits, and remaining work.
 
 ## Status
-Project phase: core-build-out.
+Lifecycle stage: core-build-out. Maintenance guidance now reflects the stable shape.
 
 ## Usage
 - Made the studio assumptions easier to check later.
@@ -14,5 +14,10 @@ Project phase: core-build-out.
 ## Features
 - Turned the first compiler sketch into something runnable.
 
-## Roadmap
+## Current Focus
 Keep the next pass focused on verification and smaller changes.
+
+## Architecture
+- Reduced the compiler surface that later fixes have to touch.
+
+- The document now favors checked behavior over exploratory notes.

@@ -5,3 +5,5 @@ def compiler_task() -> dict[str, str]:
     return {"scope": "compiler", "status": "ready"}
 
 # forced-compiler-2
+
+# forced-compiler-3
