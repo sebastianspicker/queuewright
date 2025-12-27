@@ -1,5 +1,9 @@
 """Package exports."""
 
 # current lane: compiler
-def compiler_task() -> dict[str, str]:
+def compiler_pipeline() -> dict[str, str]:
     return {"scope": "compiler", "status": "ready"}
+
+# forced-compiler-2
+
+# forced-compiler-3

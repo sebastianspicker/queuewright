@@ -1,5 +1,5 @@
 export function ReleaseView(): JSX.Element {
-  return <div>release</div>;
+  return <section>release</section>;
 }
 
 export function ReleasePanel(): JSX.Element {
@@ -9,3 +9,7 @@ export function ReleasePanel(): JSX.Element {
 export function CompilerPanel(): JSX.Element {
   return <section>compiler</section>;
 }
+
+// forced-compiler-4
+
+// forced-compiler-5
