@@ -3,10 +3,10 @@
 A working tree for queuewright with an evolving implementation history.
 
 ## Overview
-queuewright documents maintained build commands, known limits, and remaining work.
+queuewright keeps setup, verification, and known limitations in one place.
 
 ## Status
-Lifecycle stage: core-build-out. Maintenance guidance now reflects the stable shape.
+Lifecycle stage: core-build-out. The useful early notes have been carried forward.
 
 ## Usage
 - Made the studio assumptions easier to check later.
@@ -17,7 +17,13 @@ Lifecycle stage: core-build-out. Maintenance guidance now reflects the stable sh
 ## Current Focus
 Keep the next pass focused on verification and smaller changes.
 
+Prefer narrow maintenance work over broad rewrites.
 ## Architecture
 - Reduced the compiler surface that later fixes have to touch.
 
 - The document now favors checked behavior over exploratory notes.
+
+## Reliability
+- Closed a concrete compiler edge found during core-build-out work.
+
+- The older setup fragments have been reduced to the useful parts.
