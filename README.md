@@ -9,7 +9,9 @@ queuewright keeps setup, verification, and known limitations in one place.
 Lifecycle stage: core-build-out. The useful early notes have been carried forward.
 
 ## Usage
-- Made the studio assumptions easier to check later.
+- Rewrote the release explanation around the maintained behavior.
+
+- The document now favors checked behavior over exploratory notes.
 
 ## Features
 - Turned the first compiler sketch into something runnable.
@@ -18,6 +20,7 @@ Lifecycle stage: core-build-out. The useful early notes have been carried forwar
 Keep the next pass focused on verification and smaller changes.
 
 Prefer narrow maintenance work over broad rewrites.
+Use the next review to check behavior before adding surface area.
 ## Architecture
 - Reduced the compiler surface that later fixes have to touch.
 
