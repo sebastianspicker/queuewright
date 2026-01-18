@@ -6,7 +6,7 @@ A working tree for queuewright with an evolving implementation history.
 queuewright documents maintained build commands, known limits, and remaining work.
 
 ## Status
-Lifecycle stage: core-build-out. Maintenance guidance now reflects the stable shape.
+Lifecycle stage: core-build-out. Earlier setup detail now lives in maintained guidance.
 
 ## Usage
 - Rewrote the release explanation around the maintained behavior.
@@ -30,3 +30,8 @@ Use the next review to check behavior before adding surface area.
 - Closed a concrete compiler edge found during core-build-out work.
 
 - The older setup fragments have been reduced to the useful parts.
+
+## Performance
+- Reduced overhead in release.
+
+- Earlier scratch detail is now represented in maintained sections.

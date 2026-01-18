@@ -19,3 +19,5 @@ export function CompilerPanel(): JSX.Element {
 export function CorePanel(): JSX.Element {
   return <section>core</section>;
 }
+
+// forced-release-8
