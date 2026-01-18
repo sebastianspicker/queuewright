@@ -13,3 +13,5 @@ export function CompilerPanel(): JSX.Element {
 // forced-compiler-4
 
 // forced-compiler-5
+
+// forced-compiler-6

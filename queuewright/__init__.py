@@ -7,3 +7,5 @@ def compiler_pipeline() -> dict[str, str]:
 # forced-compiler-2
 
 # forced-compiler-3
+
+# forced-compiler-5
