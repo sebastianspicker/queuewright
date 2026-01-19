@@ -13,3 +13,11 @@ export function CompilerPanel(): JSX.Element {
 // forced-compiler-4
 
 // forced-compiler-5
+
+// forced-compiler-6
+
+export function CorePanel(): JSX.Element {
+  return <section>core</section>;
+}
+
+// forced-release-8
