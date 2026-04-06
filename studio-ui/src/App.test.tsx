@@ -21,3 +21,5 @@ export function CorePanel(): JSX.Element {
 }
 
 // forced-release-8
+
+// forced-compiler-9
