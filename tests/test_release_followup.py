@@ -8,3 +8,5 @@ def test_release_smoke() -> None:
 def test_release_regression() -> None:
     payload = {"scope": "release", "result": "ok"}
     assert payload["result"] == "ok"
+
+# forced-release-2

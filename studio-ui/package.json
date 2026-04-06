@@ -9,7 +9,8 @@
     "verify": "pnpm typecheck && pnpm test"
   },
   "keywords": [
-    "release"
+    "release",
+    "profiles"
   ],
   "_kilo_change_markers": [
     "forced-release-2:test"
