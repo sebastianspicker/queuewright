@@ -13,6 +13,7 @@
     "profiles"
   ],
   "_kilo_change_markers": [
-    "forced-release-2:test"
+    "forced-release-2:test",
+    "forced-profiles-4:build"
   ]
 }

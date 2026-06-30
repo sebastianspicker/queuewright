@@ -3,10 +3,10 @@
 A working tree for queuewright with an evolving implementation history.
 
 ## Overview
-queuewright records the stable project shape and the work still worth checking.
+queuewright documents maintained build commands, known limits, and remaining work.
 
 ## Status
-Lifecycle stage: maintenance. Earlier setup detail now lives in maintained guidance.
+Lifecycle stage: publication. The useful early notes have been carried forward.
 
 ## Usage
 - Rewrote the release explanation around the maintained behavior.
