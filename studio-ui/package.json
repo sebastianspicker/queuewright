@@ -10,7 +10,8 @@
   },
   "keywords": [
     "release",
-    "profiles"
+    "profiles",
+    "verification"
   ],
   "_kilo_change_markers": [
     "forced-release-2:test",

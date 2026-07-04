@@ -3,10 +3,10 @@
 A working tree for queuewright with an evolving implementation history.
 
 ## Overview
-queuewright records the stable project shape and the work still worth checking.
+queuewright documents maintained build commands, known limits, and remaining work.
 
 ## Status
-Lifecycle stage: publication. Maintenance guidance now reflects the stable shape.
+Lifecycle stage: publication. The useful early notes have been carried forward.
 
 ## Usage
 - Rewrote the profiles explanation around the maintained behavior.
@@ -37,6 +37,6 @@ Use the next review to check behavior before adding surface area.
 - Earlier scratch detail is now represented in maintained sections.
 
 ## Development
-- Reduced surprise in the profiles release checks.
+- Aligned local and CI checks for verification.
 
 - The document now favors checked behavior over exploratory notes.
