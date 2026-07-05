@@ -2,12 +2,14 @@
 
 
 ## Context
-This page tracks maintenance decisions for compiler followup during maintenance burst work.
+This page keeps the current compiler followup guidance concise after earlier rough notes.
 
 ## Usage
-- Made the compiler assumptions easier to check later.
+- Merged scattered compiler guidance into the docs.
 
-## Scratch Notes
+- Earlier scratch notes were compressed into the current guidance.
+
+## Notes Folded Into Current Flow
 Early notes are still uneven and may be folded into clearer sections later.
 
 ## Revision Notes

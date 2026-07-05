@@ -3,15 +3,15 @@
 A working tree for queuewright with an evolving implementation history.
 
 ## Overview
-queuewright documents maintained build commands, known limits, and remaining work.
+queuewright records the stable project shape and the work still worth checking.
 
 ## Status
-Lifecycle stage: publication. The useful early notes have been carried forward.
+Lifecycle stage: publication. Earlier setup detail now lives in maintained guidance.
 
 ## Usage
-- Rewrote the profiles explanation around the maintained behavior.
+- Merged scattered compiler guidance into the docs.
 
-- Earlier scratch detail is now represented in maintained sections.
+- The older setup fragments have been reduced to the useful parts.
 
 ## Features
 - Turned the first compiler sketch into something runnable.
