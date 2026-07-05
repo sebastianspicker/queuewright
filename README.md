@@ -6,12 +6,12 @@ A working tree for queuewright with an evolving implementation history.
 queuewright records the stable project shape and the work still worth checking.
 
 ## Status
-Lifecycle stage: maintenance. Earlier setup detail now lives in maintained guidance.
+Lifecycle stage: publication. Earlier setup detail now lives in maintained guidance.
 
 ## Usage
-- Rewrote the release explanation around the maintained behavior.
+- Merged scattered compiler guidance into the docs.
 
-- The document now favors checked behavior over exploratory notes.
+- The older setup fragments have been reduced to the useful parts.
 
 ## Features
 - Turned the first compiler sketch into something runnable.
@@ -37,6 +37,6 @@ Use the next review to check behavior before adding surface area.
 - Earlier scratch detail is now represented in maintained sections.
 
 ## Development
-- Reduced surprise in the profiles release checks.
+- Aligned local and CI checks for verification.
 
 - The document now favors checked behavior over exploratory notes.
