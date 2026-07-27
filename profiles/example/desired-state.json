@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0",
+  "manifest_key": "example-config-v1",
+  "managed_prefix": "Example Prototype ·",
+  "technical_namespace": "example_",
+  "safety_contract": {
+    "allow_existing_object_writes": false,
+    "allow_delete": false,
+    "identity_resolution": "create_then_readback_by_manifest_key",
+    "production_group_reference": "forbidden",
+    "activation_strategy": "create_inactive_then_readback_collision_scan_then_activate",
+    "global_surfaces_accepted": ["tag_catalog", "report_profile_catalog", "object_manager_schema", "core_workflow_evaluation"]
+  },
+  "reference_sets": {
+    "H": "all managed ticket-bearing group keys",
+    "O": "all managed organization keys",
+    "R": "all managed role keys",
+    "S": []
+  },
+  "groups": [
+    {"key":"service","name":"Example Prototype · Service","kind":"container","active":true},
+    {"key":"service_general","name":"Example Prototype · Service::General","parent":"service","kind":"leaf","service_code":"GEN.GENERAL","active":true}
+  ],
+  "organizations": [
+    {"key":"customers","name":"Example Prototype · Organization · Customers","shared":false,"domain_assignment":false,"class":"customer","active":true}
+  ],
+  "roles": [
+    {"key":"service","name":"Example Prototype · Role · Service","acl":{"full":["service_general"]}}
+  ],
+  "users": {
+    "agents": [{"key":"service","role":"service"}],
+    "customers": [{"key":"customer","organization":"customers"}],
+    "email_template":"example.{kind}.{key}@example.invalid",
+    "agent_constraints":{"one_managed_role_only":true,"notifications":false,"no_admin":true,"no_report_permission":true},
+    "customer_constraints":{"customer_role_only":true,"password_login":false,"saml_identity":false,"pat":false}
+  },
+  "overviews": [
+    {"key":"my_open","name":"Example Prototype · Overview · My open tickets","conditions":{"group":"H","organization":"O","owner":"current_user","state":"open_like"},"roles":"R"}
+  ],
+  "macros": [
+    {"key":"resolve","name":"Example Prototype · Macro · Resolve","scope":"H","actions":["set_state_closed"]}
+  ],
+  "tags": ["example/uat"],
+  "checklist_templates": [
+    {"key":"standard_intake","name":"Example Prototype · Checklist · Standard intake","active":false,"items":["Confirm owner and next step"]}
+  ],
+  "triggers": [
+    {"key":"mark_uat","name":"Example Prototype · Trigger · Mark UAT","active":true,"conditions":{"all":["group in H","organization in O"]},"actions":["add_tag:example/uat"],"external_effects":false}
+  ],
+  "jobs": [],
+  "report_profiles": [
+    {"key":"volume","name":"Example Prototype · Report · Volume","active":true,"conditions":{"group":"H","organization":"O"}}
+  ],
+  "object_manager": {
+    "activation":"mandatory_provider_maintenance_path",
+    "restart_required":true,
+    "ticket_fields":[
+      {"name":"example_service_code","type":"tree_select","required_by_workflow":true,"options":["GEN.GENERAL"]}
+    ],
+    "user_fields":[],
+    "organization_fields":[],
+    "group_fields":[],
+    "tenant_default":{"hidden":true,"optional":true,"default":null,"no_date_or_datetime":true},
+    "core_workflows":[
+      {"key":"agent_create_shared","context":"agent_create","match":"role in R and group in H","actions":"show core fields"}
+    ]
+  },
+  "uat": {
+    "ticket_count": 1,
+    "title_prefix": "[EXAMPLE-UAT]",
+    "article_visibility": "internal",
+    "retention": "close_and_retain",
+    "outbound_communication": false
+  }
+}

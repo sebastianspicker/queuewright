@@ -1,0 +1,549 @@
+{
+  "schema_version": "1.1",
+  "manifest_key": "university-service-desk-v1",
+  "managed_prefix": "University Template ·",
+  "technical_namespace": "university_",
+  "safety_contract": {
+    "allow_existing_object_writes": false,
+    "allow_delete": false,
+    "identity_resolution": "create_then_readback_by_manifest_key",
+    "production_group_reference": "forbidden",
+    "activation_strategy": "create_inactive_then_readback_collision_scan_then_activate",
+    "global_surfaces_accepted": [
+      "tag_catalog",
+      "report_profile_catalog",
+      "object_manager_schema",
+      "core_workflow_evaluation"
+    ],
+    "production_impact_claim": "offline template only; Object Manager migration and provider restart would be tenant-wide observable operations",
+    "object_manager": "mandatory_create_inactive_migrate_restart_health_ingestion_negative_production_field_check_then_activate_core_workflows"
+  },
+  "reference_sets": {
+    "H": "all managed ticket-bearing group keys",
+    "O": "all managed organization keys",
+    "R": "all managed role keys",
+    "S": [
+      "examinations",
+      "finance",
+      "human_resources",
+      "information_security"
+    ]
+  },
+  "groups": [
+    {
+      "key": "university",
+      "name": "University Template · University",
+      "kind": "container",
+      "active": true
+    },
+    {
+      "key": "administration",
+      "name": "University Template · Administration",
+      "parent": "university",
+      "kind": "container",
+      "active": true
+    },
+    {
+      "key": "human_resources",
+      "name": "University Template · Human Resources",
+      "parent": "administration",
+      "kind": "leaf",
+      "service_code": "ADM.HUMAN_RESOURCES",
+      "restricted": true,
+      "active": true
+    },
+    {
+      "key": "finance",
+      "name": "University Template · Finance",
+      "parent": "administration",
+      "kind": "leaf",
+      "service_code": "ADM.FINANCE",
+      "restricted": true,
+      "active": true
+    },
+    {
+      "key": "academic_services",
+      "name": "University Template · Academic Services",
+      "parent": "university",
+      "kind": "container",
+      "active": true
+    },
+    {
+      "key": "student_services",
+      "name": "University Template · Student Services",
+      "parent": "academic_services",
+      "kind": "leaf",
+      "service_code": "ACA.STUDENT_SERVICES",
+      "active": true
+    },
+    {
+      "key": "examinations",
+      "name": "University Template · Examinations",
+      "parent": "academic_services",
+      "kind": "leaf",
+      "service_code": "ACA.EXAMINATIONS",
+      "restricted": true,
+      "active": true
+    },
+    {
+      "key": "library",
+      "name": "University Template · Library",
+      "parent": "academic_services",
+      "kind": "leaf",
+      "service_code": "ACA.LIBRARY",
+      "active": true
+    },
+    {
+      "key": "digital_services",
+      "name": "University Template · Digital Services",
+      "parent": "university",
+      "kind": "container",
+      "active": true
+    },
+    {
+      "key": "it_support",
+      "name": "University Template · IT Support",
+      "parent": "digital_services",
+      "kind": "leaf",
+      "service_code": "DIGITAL.IT_SUPPORT",
+      "active": true
+    },
+    {
+      "key": "information_security",
+      "name": "University Template · Information Security",
+      "parent": "digital_services",
+      "kind": "leaf",
+      "service_code": "DIGITAL.INFORMATION_SECURITY",
+      "restricted": true,
+      "active": true
+    }
+  ],
+  "organizations": [
+    {
+      "key": "students",
+      "name": "University Template · Organization · Students",
+      "shared": false,
+      "domain_assignment": false,
+      "class": "student",
+      "active": true
+    },
+    {
+      "key": "academic_staff",
+      "name": "University Template · Organization · Academic staff",
+      "shared": false,
+      "domain_assignment": false,
+      "class": "academic_staff",
+      "active": true
+    },
+    {
+      "key": "professional_services",
+      "name": "University Template · Organization · Professional services",
+      "shared": false,
+      "domain_assignment": false,
+      "class": "professional_services",
+      "active": true
+    }
+  ],
+  "roles": [
+    {
+      "key": "human_resources",
+      "name": "University Template · Role · Human Resources",
+      "acl": {
+        "full": [
+          "human_resources"
+        ]
+      }
+    },
+    {
+      "key": "finance",
+      "name": "University Template · Role · Finance",
+      "acl": {
+        "full": [
+          "finance"
+        ]
+      }
+    },
+    {
+      "key": "student_services",
+      "name": "University Template · Role · Student Services",
+      "acl": {
+        "full": [
+          "student_services"
+        ]
+      }
+    },
+    {
+      "key": "examinations",
+      "name": "University Template · Role · Examinations",
+      "acl": {
+        "full": [
+          "examinations"
+        ]
+      }
+    },
+    {
+      "key": "library",
+      "name": "University Template · Role · Library",
+      "acl": {
+        "full": [
+          "library"
+        ]
+      }
+    },
+    {
+      "key": "it_support",
+      "name": "University Template · Role · IT Support",
+      "acl": {
+        "full": [
+          "it_support"
+        ]
+      }
+    },
+    {
+      "key": "information_security",
+      "name": "University Template · Role · Information Security",
+      "acl": {
+        "full": [
+          "information_security"
+        ]
+      }
+    }
+  ],
+  "users": {
+    "agents": [
+      {
+        "key": "human_resources",
+        "role": "human_resources"
+      },
+      {
+        "key": "finance",
+        "role": "finance"
+      },
+      {
+        "key": "student_services",
+        "role": "student_services"
+      },
+      {
+        "key": "examinations",
+        "role": "examinations"
+      },
+      {
+        "key": "library",
+        "role": "library"
+      },
+      {
+        "key": "it_support",
+        "role": "it_support"
+      },
+      {
+        "key": "information_security",
+        "role": "information_security"
+      }
+    ],
+    "customers": [
+      {
+        "key": "student_customer",
+        "organization": "students"
+      },
+      {
+        "key": "academic_customer",
+        "organization": "academic_staff"
+      },
+      {
+        "key": "professional_customer",
+        "organization": "professional_services"
+      }
+    ],
+    "email_template": "university.{kind}.{key}@example.invalid",
+    "agent_constraints": {
+      "one_managed_role_only": true,
+      "notifications": false,
+      "no_admin": true,
+      "no_report_permission": true
+    },
+    "customer_constraints": {
+      "customer_role_only": true,
+      "password_login": false,
+      "saml_identity": false,
+      "pat": false
+    }
+  },
+  "overviews": [
+    {
+      "key": "my_open",
+      "name": "University Template · Overview · My open tickets",
+      "conditions": {
+        "group": "H",
+        "organization": "O",
+        "owner": "current_user",
+        "state": "open_like"
+      },
+      "roles": "R"
+    },
+    {
+      "key": "unassigned",
+      "name": "University Template · Overview · Unassigned in my services",
+      "conditions": {
+        "group": "H",
+        "organization": "O",
+        "owner": "unassigned",
+        "state": "open_like"
+      },
+      "roles": "R"
+    }
+  ],
+  "macros": [
+    {
+      "key": "resolve",
+      "name": "University Template · Macro · Resolve",
+      "scope": "H",
+      "actions": [
+        "set_state_closed"
+      ]
+    },
+    {
+      "key": "prepare_handoff",
+      "name": "University Template · Macro · Prepare handoff",
+      "scope": "H",
+      "actions": [
+        "add_tag:university/handoff_pending",
+        "clear_owner",
+        "internal_note:Prepare a minimized internal handoff record"
+      ]
+    }
+  ],
+  "tags": [
+    "university/uat",
+    "university/handoff_pending",
+    "university/handoff_recorded",
+    "university/sensitive",
+    "university/stale_reviewed"
+  ],
+  "checklist_templates": [
+    {
+      "key": "standard_intake",
+      "name": "University Template · Checklist · Standard intake",
+      "active": false,
+      "items": [
+        "Confirm service and accountable group",
+        "Check whether sensitive data is minimized",
+        "Set owner and next step"
+      ]
+    }
+  ],
+  "triggers": [
+    {
+      "key": "mark_uat",
+      "name": "University Template · Trigger · Mark UAT",
+      "active": true,
+      "conditions": {
+        "all": [
+          "group in H",
+          "organization in O"
+        ]
+      },
+      "actions": [
+        "add_tag:university/uat"
+      ],
+      "idempotency": "Tag membership is set-like; repeated add produces no duplicate relation",
+      "external_effects": false
+    },
+    {
+      "key": "record_handoff",
+      "name": "University Template · Trigger · Record handoff",
+      "active": true,
+      "conditions": {
+        "all": [
+          "group in H",
+          "organization in O",
+          "tag present university/handoff_pending"
+        ]
+      },
+      "actions": [
+        "add_tag:university/handoff_recorded"
+      ],
+      "idempotency": "Tag membership is set-like; repeated add produces no duplicate relation",
+      "external_effects": false
+    },
+    {
+      "key": "mark_sensitive",
+      "name": "University Template · Trigger · Mark sensitive area",
+      "active": true,
+      "conditions": {
+        "all": [
+          "group in S",
+          "organization in O"
+        ]
+      },
+      "actions": [
+        "add_tag:university/sensitive"
+      ],
+      "idempotency": "Tag membership is set-like; repeated add produces no duplicate relation",
+      "external_effects": false
+    }
+  ],
+  "jobs": [
+    {
+      "key": "review_stale_handoff",
+      "name": "University Template · Job · Review stale handoff",
+      "active": true,
+      "schedule": "10 7 * * * Etc/UTC",
+      "schedule_note": "Inert template default; choose the tenant time zone and review interval before any connected delivery",
+      "conditions": {
+        "all": [
+          "group in H",
+          "organization in O",
+          "state open_like",
+          "tag present university/handoff_pending",
+          "unchanged_at_least_days:14"
+        ]
+      },
+      "actions": [
+        "internal_note:stale_handoff_template",
+        "add_tag:university/stale_reviewed"
+      ],
+      "idempotency": "The internal note and tag update reset updated_at; an unresolved handoff can be reviewed again only after another 14 days",
+      "external_effects": false,
+      "forbidden_actions": [
+        "delete",
+        "close",
+        "mail",
+        "webhook",
+        "ai",
+        "public_article",
+        "group_move",
+        "owner_change"
+      ]
+    }
+  ],
+  "report_profiles": [
+    {
+      "key": "managed_volume",
+      "name": "University Template · Report · Managed volume",
+      "active": true,
+      "conditions": {
+        "group": "H",
+        "organization": "O"
+      }
+    },
+    {
+      "key": "restricted_volume",
+      "name": "University Template · Report · Restricted volume",
+      "active": true,
+      "conditions": {
+        "group": "S",
+        "organization": "O"
+      }
+    }
+  ],
+  "object_manager": {
+    "activation": "mandatory_provider_maintenance_path",
+    "implementation_sequence": [
+      "create_6_attributes_inactive",
+      "execute_object_manager_migrations",
+      "provider_restart",
+      "health_and_ticket_ingestion_checks",
+      "activate_attributes_hidden_optional",
+      "negative_production_field_checks",
+      "create_core_workflow_inactive",
+      "activate_core_workflow_after_negative_checks"
+    ],
+    "restart_required": true,
+    "production_impact_claim": "zero_observable_impact_not_claimable",
+    "ticket_fields": [
+      {
+        "name": "university_service_code",
+        "type": "tree_select",
+        "required_by_workflow": true,
+        "options": [
+          "ADM.HUMAN_RESOURCES",
+          "ADM.FINANCE",
+          "ACA.STUDENT_SERVICES",
+          "ACA.EXAMINATIONS",
+          "ACA.LIBRARY",
+          "DIGITAL.IT_SUPPORT",
+          "DIGITAL.INFORMATION_SECURITY"
+        ]
+      },
+      {
+        "name": "university_handoff_type",
+        "type": "select",
+        "required_by_workflow": true,
+        "options": [
+          "consultation",
+          "transfer",
+          "sanitized_child",
+          "split_work"
+        ]
+      },
+      {
+        "name": "university_sensitive_area",
+        "type": "select",
+        "required_by_workflow": true,
+        "options": [
+          "no",
+          "yes"
+        ]
+      }
+    ],
+    "user_fields": [
+      {
+        "name": "university_user_population",
+        "type": "select",
+        "options": [
+          "student",
+          "academic_staff",
+          "professional_services",
+          "external"
+        ],
+        "api_only": true
+      }
+    ],
+    "organization_fields": [
+      {
+        "name": "university_organization_class",
+        "type": "select",
+        "options": [
+          "student",
+          "academic_staff",
+          "professional_services",
+          "external"
+        ],
+        "api_only": true
+      }
+    ],
+    "group_fields": [
+      {
+        "name": "university_group_class",
+        "type": "select",
+        "options": [
+          "container",
+          "service",
+          "restricted"
+        ],
+        "api_only": true
+      }
+    ],
+    "tenant_default": {
+      "hidden": true,
+      "optional": true,
+      "default": null,
+      "no_date_or_datetime": true
+    },
+    "core_workflows": [
+      {
+        "key": "agent_create_shared",
+        "context": "agent_create",
+        "match": "role in R and group in H",
+        "actions": "show managed fields for the selected service"
+      }
+    ]
+  },
+  "uat": {
+    "ticket_count": 8,
+    "title_prefix": "[UNIVERSITY-UAT]",
+    "article_visibility": "internal",
+    "retention": "close_and_retain",
+    "outbound_communication": false
+  }
+}

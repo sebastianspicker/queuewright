@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/queuewright-project.schema.json",
+  "title": "Local Queuewright Studio project",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_schema_version",
+    "id",
+    "name",
+    "target_schema_version",
+    "profile",
+    "manifest",
+    "resource_ownership",
+    "feature_state"
+  ],
+  "properties": {
+    "project_schema_version": {"const": "1.0"},
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+    "name": {"type": "string", "minLength": 1},
+    "target_schema_version": {"enum": ["1.0", "1.1"]},
+    "profile": {"$ref": "queuewright-profile.schema.json"},
+    "manifest": {"$ref": "queuewright-desired-state.schema.json"},
+    "resource_ownership": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^(groups|organizations|roles|agents|customers|tags|overviews|macros|checklist_templates|triggers|jobs|report_profiles|object_manager_fields|core_workflows|uat_scenarios):.+$"
+      },
+      "additionalProperties": {"$ref": "#/$defs/resource_owner"}
+    },
+    "feature_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticket_fields",
+        "user_classification",
+        "organization_classification",
+        "group_classification",
+        "overviews",
+        "macros",
+        "checklists",
+        "triggers",
+        "scheduled_reviews",
+        "report_profiles",
+        "cross_department_handoff",
+        "sensitive_area_handling",
+        "dummy_users_uat",
+        "access_matrix"
+      ],
+      "properties": {
+        "ticket_fields": {"$ref": "#/$defs/feature_state"},
+        "user_classification": {"$ref": "#/$defs/feature_state"},
+        "organization_classification": {"$ref": "#/$defs/feature_state"},
+        "group_classification": {"$ref": "#/$defs/feature_state"},
+        "overviews": {"$ref": "#/$defs/feature_state"},
+        "macros": {"$ref": "#/$defs/feature_state"},
+        "checklists": {"$ref": "#/$defs/feature_state"},
+        "triggers": {"$ref": "#/$defs/feature_state"},
+        "scheduled_reviews": {"$ref": "#/$defs/feature_state"},
+        "report_profiles": {"$ref": "#/$defs/feature_state"},
+        "cross_department_handoff": {"$ref": "#/$defs/feature_state"},
+        "sensitive_area_handling": {"$ref": "#/$defs/feature_state"},
+        "dummy_users_uat": {"$ref": "#/$defs/feature_state"},
+        "access_matrix": {"$ref": "#/$defs/feature_state"}
+      }
+    }
+  },
+  "$defs": {
+    "feature_id": {
+      "enum": [
+        "ticket_fields",
+        "user_classification",
+        "organization_classification",
+        "group_classification",
+        "overviews",
+        "macros",
+        "checklists",
+        "triggers",
+        "scheduled_reviews",
+        "report_profiles",
+        "cross_department_handoff",
+        "sensitive_area_handling",
+        "dummy_users_uat",
+        "access_matrix"
+      ]
+    },
+    "resource_owner": {
+      "oneOf": [
+        {"enum": ["core", "custom"]},
+        {"$ref": "#/$defs/feature_id"}
+      ]
+    },
+    "feature_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "settings"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "settings": {"$ref": "#/$defs/safe_settings"}
+      }
+    },
+    "safe_settings": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^(?!.*(?:authorization|cookie|credential|env|password|secret|session|token))(?!.*(?:api_?key|private_?key))[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {"$ref": "#/$defs/safe_value"}
+    },
+    "safe_value": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "boolean"},
+        {"type": "number"},
+        {"type": "string", "pattern": "^(?!.*://).*"},
+        {"type": "array", "items": {"$ref": "#/$defs/safe_value"}},
+        {"$ref": "#/$defs/safe_settings"}
+      ]
+    }
+  }
+}
