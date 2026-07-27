@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "profile_key": "example",
+  "display_name": "Reusable minimal service desk example",
+  "offline_only": true,
+  "manifest": "desired-state.json",
+  "identity": {
+    "agent_login_template": "example.agent.{key}",
+    "customer_login_template": "example.customer.{key}",
+    "email_template": "example.{kind}.{key}@example.invalid",
+    "agent_firstname": "Example",
+    "customer_firstname": "Example",
+    "dummy_only": true,
+    "notifications": false
+  },
+  "presentation": {
+    "field_labels": {
+      "example_service_code": "Example · Service"
+    },
+    "option_labels": {
+      "GEN.GENERAL": "General request"
+    },
+    "core_workflow_names": {
+      "agent_create_shared": "Example Prototype · CW · Agent create shared"
+    },
+    "object_manager_positions": {
+      "Ticket": {"start": 2200, "step": 10},
+      "User": {"start": 1900, "step": 10},
+      "Organization": {"start": 1900, "step": 10},
+      "Group": {"start": 1900, "step": 10}
+    }
+  },
+  "uat": {
+    "title_prefix": "[EXAMPLE-UAT]",
+    "article_visibility": "internal",
+    "retention": "close_and_retain",
+    "outbound_communication": false,
+    "defaults": {
+      "service_code": null
+    },
+    "scenarios": [
+      {"key":"seed-general","number":1,"kind":"seed","group":"service_general","customer":"customer","agent":"service","label":"General request","expected_tags":["example/uat"]}
+    ],
+    "access_matrix": {
+      "seed_keys": ["seed-general"]
+    }
+  }
+}
