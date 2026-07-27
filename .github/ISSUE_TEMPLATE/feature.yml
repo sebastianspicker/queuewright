@@ -1,0 +1,34 @@
+name: Feature request
+description: Propose a focused improvement that preserves Queuewright's safety boundary.
+title: "feature: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What operator problem should Queuewright solve?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the observable result, not an implementation.
+    validations:
+      required: true
+  - type: dropdown
+    id: boundary
+    attributes:
+      label: Safety boundary
+      options:
+        - Offline compiler or schema
+        - Local Studio
+        - Connected-mode proposal
+        - Documentation or release process
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

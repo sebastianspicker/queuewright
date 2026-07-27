@@ -1,15 +1,13 @@
-"""Package exports."""
+"""Offline validation and symbolic planning for Zammad configuration bundles."""
 
-# current lane: compiler
-def compiler_pipeline() -> dict[str, str]:
-    return {"scope": "compiler", "status": "ready"}
+from .compiler import compile_plan
+from .errors import ConfigurationError
+from .profile import is_forbidden_local_path, load_profile, validate_profile
 
-# forced-compiler-2
-
-# forced-compiler-3
-
-# forced-compiler-5
-
-# current lane: core
-def core_pipeline() -> dict[str, str]:
-    return {"scope": "core", "status": "ready"}
+__all__ = [
+    "ConfigurationError",
+    "compile_plan",
+    "is_forbidden_local_path",
+    "load_profile",
+    "validate_profile",
+]

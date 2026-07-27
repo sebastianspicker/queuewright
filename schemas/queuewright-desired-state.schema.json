@@ -1,0 +1,381 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/queuewright-desired-state.schema.json",
+  "title": "Reusable Zammad desired-state manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "manifest_key",
+    "managed_prefix",
+    "technical_namespace",
+    "safety_contract",
+    "reference_sets",
+    "groups",
+    "organizations",
+    "roles",
+    "users",
+    "overviews",
+    "macros",
+    "tags",
+    "checklist_templates",
+    "triggers",
+    "jobs",
+    "report_profiles",
+    "object_manager",
+    "uat"
+  ],
+  "properties": {
+    "schema_version": {"enum": ["1.0", "1.1"]},
+    "manifest_key": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*-v[0-9]+$"},
+    "managed_prefix": {"type": "string", "minLength": 2},
+    "technical_namespace": {"type": "string", "pattern": "^[a-z][a-z0-9_]*_$"},
+    "safety_contract": {"$ref": "#/$defs/safety_contract"},
+    "reference_sets": {"$ref": "#/$defs/reference_sets"},
+    "groups": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"oneOf": [{"$ref": "#/$defs/container_group"}, {"$ref": "#/$defs/leaf_group"}]}
+    },
+    "organizations": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/organization"}},
+    "roles": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/role"}},
+    "users": {"$ref": "#/$defs/users"},
+    "overviews": {"type": "array", "items": {"$ref": "#/$defs/overview"}},
+    "macros": {"type": "array", "items": {"$ref": "#/$defs/macro"}},
+    "tags": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "checklist_templates": {"type": "array", "items": {"$ref": "#/$defs/checklist"}},
+    "triggers": {"type": "array", "items": {"$ref": "#/$defs/trigger"}},
+    "jobs": {"type": "array", "items": {"$ref": "#/$defs/job"}},
+    "report_profiles": {"type": "array", "items": {"$ref": "#/$defs/report"}},
+    "object_manager": {"$ref": "#/$defs/object_manager"},
+    "uat": {"$ref": "#/$defs/manifest_uat"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"schema_version": {"const": "1.0"}}},
+      "then": {
+        "properties": {
+          "groups": {
+            "items": {
+              "oneOf": [
+                {"$ref": "#/$defs/container_group_v1_0"},
+                {"$ref": "#/$defs/leaf_group"}
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "resource_key": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"},
+    "safety_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allow_existing_object_writes", "allow_delete", "production_group_reference", "activation_strategy"],
+      "properties": {
+        "allow_existing_object_writes": {"const": false},
+        "allow_delete": {"const": false},
+        "production_group_reference": {"const": "forbidden"},
+        "activation_strategy": {"const": "create_inactive_then_readback_collision_scan_then_activate"},
+        "global_surfaces_accepted": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "identity_resolution": {"type": "string", "minLength": 1},
+        "object_manager": {"type": "string", "minLength": 1},
+        "production_impact_claim": {"type": "string", "minLength": 1}
+      }
+    },
+    "reference_sets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["H", "O", "R", "S"],
+      "properties": {
+        "H": {"const": "all managed ticket-bearing group keys"},
+        "O": {"const": "all managed organization keys"},
+        "R": {"const": "all managed role keys"},
+        "S": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/resource_key"}}
+      }
+    },
+    "container_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["active", "key", "kind", "name"],
+      "properties": {
+        "active": {"const": true},
+        "key": {"$ref": "#/$defs/resource_key"},
+        "kind": {"const": "container"},
+        "name": {"type": "string", "minLength": 1},
+        "parent": {"$ref": "#/$defs/resource_key"}
+      }
+    },
+    "container_group_v1_0": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["active", "key", "kind", "name"],
+      "properties": {
+        "active": {"const": true},
+        "key": {"$ref": "#/$defs/resource_key"},
+        "kind": {"const": "container"},
+        "name": {"type": "string", "minLength": 1}
+      }
+    },
+    "leaf_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["active", "key", "kind", "name", "parent", "service_code"],
+      "properties": {
+        "active": {"const": true},
+        "key": {"$ref": "#/$defs/resource_key"},
+        "kind": {"const": "leaf"},
+        "name": {"type": "string", "minLength": 1},
+        "parent": {"$ref": "#/$defs/resource_key"},
+        "restricted": {"type": "boolean"},
+        "service_code": {"type": "string", "minLength": 1}
+      }
+    },
+    "organization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["active", "class", "domain_assignment", "key", "name", "shared"],
+      "properties": {
+        "active": {"const": true},
+        "class": {"type": "string", "minLength": 1},
+        "domain_assignment": {"const": false},
+        "key": {"$ref": "#/$defs/resource_key"},
+        "name": {"type": "string", "minLength": 1},
+        "shared": {"const": false}
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["acl", "key", "name"],
+      "properties": {
+        "acl": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "change": {"$ref": "#/$defs/key_array"},
+            "create": {"$ref": "#/$defs/key_array"},
+            "full": {"$ref": "#/$defs/key_array"},
+            "overview": {"$ref": "#/$defs/key_array"},
+            "read": {"$ref": "#/$defs/key_array"},
+            "read_change_overview": {"$ref": "#/$defs/key_array"}
+          }
+        },
+        "key": {"$ref": "#/$defs/resource_key"},
+        "name": {"type": "string", "minLength": 1}
+      }
+    },
+    "key_array": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/resource_key"}},
+    "users": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent_constraints", "agents", "customer_constraints", "customers", "email_template"],
+      "properties": {
+        "agent_constraints": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["notifications", "no_admin", "no_report_permission"],
+          "properties": {
+            "notifications": {"const": false},
+            "no_admin": {"const": true},
+            "no_report_permission": {"const": true}
+          },
+          "patternProperties": {"^one_[a-z0-9_]+_role_only$": {"const": true}}
+        },
+        "agents": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/agent"}},
+        "customer_constraints": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["customer_role_only", "password_login", "pat", "saml_identity"],
+          "properties": {
+            "customer_role_only": {"const": true},
+            "password_login": {"const": false},
+            "pat": {"const": false},
+            "saml_identity": {"const": false}
+          }
+        },
+        "customers": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/customer"}},
+        "email_template": {"type": "string", "pattern": "@example\\.invalid$"}
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "role"],
+      "properties": {"key": {"$ref": "#/$defs/resource_key"}, "role": {"$ref": "#/$defs/resource_key"}}
+    },
+    "customer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "organization"],
+      "properties": {"key": {"$ref": "#/$defs/resource_key"}, "organization": {"$ref": "#/$defs/resource_key"}}
+    },
+    "overview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conditions", "key", "name", "roles"],
+      "properties": {
+        "conditions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["group", "organization"],
+          "properties": {
+            "group": {"enum": ["H", "S"]},
+            "organization": {"const": "O"},
+            "owner": {"type": "string", "minLength": 1},
+            "state": {"type": "string", "minLength": 1},
+            "tag": {"type": "string", "minLength": 1}
+          }
+        },
+        "key": {"$ref": "#/$defs/resource_key"},
+        "name": {"type": "string", "minLength": 1},
+        "roles": {"const": "R"}
+      }
+    },
+    "macro": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actions", "key", "name", "scope"],
+      "properties": {
+        "actions": {"$ref": "#/$defs/nonempty_string_array"},
+        "key": {"$ref": "#/$defs/resource_key"},
+        "name": {"type": "string", "minLength": 1},
+        "scope": {"const": "H"}
+      }
+    },
+    "checklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["active", "items", "key", "name"],
+      "properties": {
+        "active": {"const": false},
+        "items": {"$ref": "#/$defs/nonempty_string_array"},
+        "key": {"$ref": "#/$defs/resource_key"},
+        "name": {"type": "string", "minLength": 1}
+      }
+    },
+    "conditions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["all"],
+      "properties": {"all": {"$ref": "#/$defs/nonempty_string_array"}}
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actions", "active", "conditions", "external_effects", "key", "name"],
+      "properties": {
+        "actions": {"$ref": "#/$defs/nonempty_string_array"},
+        "active": {"const": true},
+        "conditions": {"$ref": "#/$defs/conditions"},
+        "external_effects": {"const": false},
+        "idempotency": {"type": "string", "minLength": 1},
+        "key": {"$ref": "#/$defs/resource_key"},
+        "name": {"type": "string", "minLength": 1}
+      }
+    },
+    "job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actions", "active", "conditions", "forbidden_actions", "key", "name", "schedule"],
+      "properties": {
+        "actions": {"$ref": "#/$defs/nonempty_string_array"},
+        "active": {"const": true},
+        "conditions": {"$ref": "#/$defs/conditions"},
+        "external_effects": {"const": false},
+        "forbidden_actions": {"$ref": "#/$defs/nonempty_string_array"},
+        "idempotency": {"type": "string", "minLength": 1},
+        "key": {"$ref": "#/$defs/resource_key"},
+        "name": {"type": "string", "minLength": 1},
+        "schedule": {"type": "string", "minLength": 1},
+        "schedule_note": {"type": "string", "minLength": 1}
+      }
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["active", "conditions", "key", "name"],
+      "properties": {
+        "active": {"const": true},
+        "conditions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["group", "organization"],
+          "properties": {"group": {"enum": ["H", "S"]}, "organization": {"const": "O"}}
+        },
+        "key": {"$ref": "#/$defs/resource_key"},
+        "name": {"type": "string", "minLength": 1}
+      }
+    },
+    "object_manager": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["core_workflows", "group_fields", "organization_fields", "tenant_default", "ticket_fields", "user_fields"],
+      "properties": {
+        "activation": {"type": "string", "minLength": 1},
+        "core_workflows": {"type": "array", "items": {"$ref": "#/$defs/workflow"}},
+        "group_fields": {"type": "array", "items": {"$ref": "#/$defs/object_field"}},
+        "implementation_sequence": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "organization_fields": {"type": "array", "items": {"$ref": "#/$defs/object_field"}},
+        "production_impact_claim": {"type": "string", "minLength": 1},
+        "restart_required": {"type": "boolean"},
+        "tenant_default": {"$ref": "#/$defs/tenant_default"},
+        "ticket_fields": {"type": "array", "items": {"$ref": "#/$defs/object_field"}},
+        "user_fields": {"type": "array", "items": {"$ref": "#/$defs/object_field"}}
+      }
+    },
+    "object_field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "options", "type"],
+      "properties": {
+        "api_only": {"type": "boolean"},
+        "name": {"type": "string", "minLength": 1},
+        "options": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "required_by_workflow": {"type": "boolean"},
+        "type": {"enum": ["select", "tree_select"]}
+      }
+    },
+    "tenant_default": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default", "hidden", "optional"],
+      "properties": {
+        "default": {"type": "null"},
+        "hidden": {"const": true},
+        "no_date_or_datetime": {"const": true},
+        "optional": {"const": true}
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actions", "context", "key", "match"],
+      "properties": {
+        "actions": {"type": "string", "minLength": 1},
+        "context": {"enum": ["agent_create", "agent_edit", "customer_create"]},
+        "key": {"$ref": "#/$defs/resource_key"},
+        "match": {"type": "string", "minLength": 1}
+      }
+    },
+    "manifest_uat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ticket_count", "article_visibility", "retention", "outbound_communication", "title_prefix"],
+      "properties": {
+        "ticket_count": {"type": "integer", "minimum": 1},
+        "article_visibility": {"const": "internal"},
+        "retention": {"const": "close_and_retain"},
+        "outbound_communication": {"const": false},
+        "title_prefix": {"type": "string", "minLength": 1}
+      }
+    },
+    "nonempty_string_array": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

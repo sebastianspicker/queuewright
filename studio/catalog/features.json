@@ -1,0 +1,159 @@
+{
+  "schema_version": "1.0",
+  "features": [
+    {
+      "id": "ticket_fields",
+      "name": "Ticket fields",
+      "category": "Intake & classification",
+      "description": "Define managed ticket classifications with controlled options.",
+      "default_enabled": true,
+      "locked": true,
+      "settings": {"customer_entry_points": []},
+      "dependencies": [],
+      "locked_assurances": ["offline_only", "managed_namespace_only"]
+    },
+    {
+      "id": "user_classification",
+      "name": "User classification",
+      "category": "Intake & classification",
+      "description": "Classify dummy user records without external identity sources.",
+      "default_enabled": false,
+      "locked": false,
+      "settings": {},
+      "dependencies": [],
+      "locked_assurances": ["dummy_users_only", "no_notifications"]
+    },
+    {
+      "id": "organization_classification",
+      "name": "Organization classification",
+      "category": "Intake & classification",
+      "description": "Classify unshared managed organizations.",
+      "default_enabled": false,
+      "locked": false,
+      "settings": {},
+      "dependencies": [],
+      "locked_assurances": ["unshared_organizations", "no_domain_assignment"]
+    },
+    {
+      "id": "group_classification",
+      "name": "Group classification",
+      "category": "Intake & classification",
+      "description": "Classify managed groups and service boundaries.",
+      "default_enabled": false,
+      "locked": false,
+      "settings": {},
+      "dependencies": [],
+      "locked_assurances": ["managed_groups_only"]
+    },
+    {
+      "id": "overviews",
+      "name": "Overviews",
+      "category": "Agent workspace",
+      "description": "Create role- and organization-fenced ticket overviews.",
+      "default_enabled": true,
+      "locked": false,
+      "settings": {},
+      "dependencies": [],
+      "locked_assurances": ["managed_scope_fence"]
+    },
+    {
+      "id": "macros",
+      "name": "Macros",
+      "category": "Agent workspace",
+      "description": "Define inert, managed-scope ticket macros.",
+      "default_enabled": true,
+      "locked": false,
+      "settings": {},
+      "dependencies": [],
+      "locked_assurances": ["no_external_actions"]
+    },
+    {
+      "id": "checklists",
+      "name": "Checklists",
+      "category": "Agent workspace",
+      "description": "Prepare inactive checklist templates for review.",
+      "default_enabled": false,
+      "locked": false,
+      "settings": {},
+      "dependencies": ["ticket_fields"],
+      "locked_assurances": ["inactive_by_default"]
+    },
+    {
+      "id": "triggers",
+      "name": "Triggers",
+      "category": "Automation & reporting",
+      "description": "Define fenced automations without external effects.",
+      "default_enabled": true,
+      "locked": false,
+      "settings": {},
+      "dependencies": [],
+      "locked_assurances": ["no_external_effects"]
+    },
+    {
+      "id": "scheduled_reviews",
+      "name": "Scheduled reviews",
+      "category": "Automation & reporting",
+      "description": "Schedule internal review markers on managed tickets.",
+      "default_enabled": false,
+      "locked": false,
+      "settings": {},
+      "dependencies": ["triggers"],
+      "locked_assurances": ["forbidden_actions_enforced", "no_external_effects"]
+    },
+    {
+      "id": "report_profiles",
+      "name": "Report profiles",
+      "category": "Automation & reporting",
+      "description": "Define managed-scope report profiles.",
+      "default_enabled": false,
+      "locked": false,
+      "settings": {},
+      "dependencies": ["overviews"],
+      "locked_assurances": ["managed_scope_fence"]
+    },
+    {
+      "id": "cross_department_handoff",
+      "name": "Cross-department handoff",
+      "category": "Collaboration & assurance",
+      "description": "Model internal handoff probes between managed groups.",
+      "default_enabled": true,
+      "locked": false,
+      "settings": {"modes": ["consultation", "transfer", "sanitized_child", "split_work"]},
+      "dependencies": ["ticket_fields", "macros", "triggers"],
+      "locked_assurances": ["internal_articles_only"]
+    },
+    {
+      "id": "sensitive_area_handling",
+      "name": "Sensitive-area handling",
+      "category": "Collaboration & assurance",
+      "description": "Mark restricted managed areas for safer routing.",
+      "default_enabled": true,
+      "locked": false,
+      "settings": {},
+      "dependencies": ["ticket_fields", "triggers"],
+      "locked_assurances": ["restricted_groups_only"]
+    },
+    {
+      "id": "dummy_users_uat",
+      "name": "Dummy users and UAT",
+      "category": "Collaboration & assurance",
+      "description": "Create only synthetic UAT agents and customers.",
+      "default_enabled": true,
+      "locked": true,
+      "settings": {},
+      "dependencies": [],
+      "locked_assurances": ["example_invalid_email", "no_password_or_pat"]
+    },
+    {
+      "id": "access_matrix",
+      "name": "Access matrix",
+      "category": "Collaboration & assurance",
+      "description": "Verify declared role access against seeded UAT tickets.",
+      "default_enabled": true,
+      "locked": true,
+      "settings": {"levels": ["none", "read", "create", "work"]},
+      "dependencies": ["dummy_users_uat"],
+      "locked_assurances": ["offline_validation_only"]
+    }
+  ]
+}

@@ -1,0 +1,232 @@
+{
+  "schema_version": "1.1",
+  "profile_key": "university",
+  "display_name": "University service desk template",
+  "offline_only": true,
+  "manifest": "university.desired-state.json",
+  "identity": {
+    "agent_login_template": "university.agent.{key}",
+    "customer_login_template": "university.customer.{key}",
+    "email_template": "university.{kind}.{key}@example.invalid",
+    "agent_firstname": "University",
+    "customer_firstname": "University",
+    "dummy_only": true,
+    "notifications": false
+  },
+  "presentation": {
+    "field_labels": {
+      "university_service_code": "Service",
+      "university_handoff_type": "Handoff type",
+      "university_sensitive_area": "Sensitive area",
+      "university_user_population": "User population",
+      "university_organization_class": "Organization class",
+      "university_group_class": "Group class"
+    },
+    "option_labels": {
+      "ADM.HUMAN_RESOURCES": "Human Resources",
+      "ADM.FINANCE": "Finance",
+      "ACA.STUDENT_SERVICES": "Student Services",
+      "ACA.EXAMINATIONS": "Examinations",
+      "ACA.LIBRARY": "Library",
+      "DIGITAL.IT_SUPPORT": "IT Support",
+      "DIGITAL.INFORMATION_SECURITY": "Information Security",
+      "consultation": "Consultation",
+      "transfer": "Transfer",
+      "sanitized_child": "Sanitized child",
+      "split_work": "Split work",
+      "no": "No",
+      "yes": "Yes",
+      "student": "Student",
+      "academic_staff": "Academic staff",
+      "professional_services": "Professional services",
+      "external": "External",
+      "container": "Container",
+      "service": "Service",
+      "restricted": "Restricted"
+    },
+    "core_workflow_names": {
+      "agent_create_shared": "University Template · CW · Agent create shared"
+    },
+    "object_manager_positions": {
+      "Ticket": {
+        "start": 2200,
+        "step": 10
+      },
+      "User": {
+        "start": 1900,
+        "step": 10
+      },
+      "Organization": {
+        "start": 1900,
+        "step": 10
+      },
+      "Group": {
+        "start": 1900,
+        "step": 10
+      }
+    }
+  },
+  "uat": {
+    "title_prefix": "[UNIVERSITY-UAT]",
+    "article_visibility": "internal",
+    "retention": "close_and_retain",
+    "outbound_communication": false,
+    "defaults": {
+      "service_code": null,
+      "handoff_type": "consultation",
+      "sensitive_area": "no"
+    },
+    "scenarios": [
+      {
+        "key": "seed_human_resources",
+        "number": 1,
+        "kind": "seed",
+        "group": "human_resources",
+        "customer": "professional_customer",
+        "agent": "human_resources",
+        "label": "Human Resources request",
+        "expected_tags": [
+          "university/uat",
+          "university/sensitive"
+        ],
+        "service_code": "ADM.HUMAN_RESOURCES",
+        "sensitive_area": "yes"
+      },
+      {
+        "key": "seed_finance",
+        "number": 2,
+        "kind": "seed",
+        "group": "finance",
+        "customer": "professional_customer",
+        "agent": "finance",
+        "label": "Finance request",
+        "expected_tags": [
+          "university/uat",
+          "university/sensitive"
+        ],
+        "service_code": "ADM.FINANCE",
+        "sensitive_area": "yes"
+      },
+      {
+        "key": "seed_student_services",
+        "number": 3,
+        "kind": "seed",
+        "group": "student_services",
+        "customer": "student_customer",
+        "agent": "student_services",
+        "label": "Student Services request",
+        "expected_tags": [
+          "university/uat"
+        ],
+        "service_code": "ACA.STUDENT_SERVICES",
+        "sensitive_area": "no"
+      },
+      {
+        "key": "seed_examinations",
+        "number": 4,
+        "kind": "seed",
+        "group": "examinations",
+        "customer": "student_customer",
+        "agent": "examinations",
+        "label": "Examinations request",
+        "expected_tags": [
+          "university/uat",
+          "university/sensitive"
+        ],
+        "service_code": "ACA.EXAMINATIONS",
+        "sensitive_area": "yes"
+      },
+      {
+        "key": "seed_library",
+        "number": 5,
+        "kind": "seed",
+        "group": "library",
+        "customer": "academic_customer",
+        "agent": "library",
+        "label": "Library request",
+        "expected_tags": [
+          "university/uat"
+        ],
+        "service_code": "ACA.LIBRARY",
+        "sensitive_area": "no"
+      },
+      {
+        "key": "seed_it_support",
+        "number": 6,
+        "kind": "seed",
+        "group": "it_support",
+        "customer": "academic_customer",
+        "agent": "it_support",
+        "label": "IT Support request",
+        "expected_tags": [
+          "university/uat"
+        ],
+        "service_code": "DIGITAL.IT_SUPPORT",
+        "sensitive_area": "no"
+      },
+      {
+        "key": "seed_information_security",
+        "number": 7,
+        "kind": "seed",
+        "group": "information_security",
+        "customer": "professional_customer",
+        "agent": "information_security",
+        "label": "Information Security request",
+        "expected_tags": [
+          "university/uat",
+          "university/sensitive"
+        ],
+        "service_code": "DIGITAL.INFORMATION_SECURITY",
+        "sensitive_area": "yes"
+      },
+      {
+        "key": "scenario_handoff",
+        "number": 8,
+        "kind": "transfer",
+        "group": "student_services",
+        "customer": "student_customer",
+        "agent": "student_services",
+        "label": "Cross-service handoff review",
+        "correlation_template": "UNIVERSITY-UAT-{run}-HANDOFF",
+        "handoff_type": "transfer",
+        "service_code": "ACA.STUDENT_SERVICES",
+        "sensitive_area": "no",
+        "expected_tags": [
+          "university/uat",
+          "university/handoff_pending",
+          "university/handoff_recorded",
+          "university/stale_reviewed"
+        ]
+      }
+    ],
+    "access_matrix": {
+      "seed_keys": [
+        "seed_human_resources",
+        "seed_finance",
+        "seed_student_services",
+        "seed_examinations",
+        "seed_library",
+        "seed_it_support",
+        "seed_information_security"
+      ]
+    },
+    "handoff_probe": {
+      "ticket_key": "scenario_handoff",
+      "agent": "student_services",
+      "source_group": "student_services",
+      "target_group": "it_support",
+      "pending_tag": "university/handoff_pending",
+      "recorded_tag": "university/handoff_recorded",
+      "expected_owner": "unassigned"
+    },
+    "job_probe": {
+      "job_key": "review_stale_handoff",
+      "ticket_key": "scenario_handoff",
+      "agent": "student_services",
+      "subject": "University template UAT handoff review",
+      "marker_tag": "university/stale_reviewed",
+      "expected_internal_notes": 1,
+      "final_schedule": "07:10 Etc/UTC"
+    }
+  }
+}

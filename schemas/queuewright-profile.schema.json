@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/queuewright-profile.schema.json",
+  "title": "Offline Zammad configuration profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile_key", "display_name", "offline_only", "manifest", "identity", "presentation", "uat"],
+  "properties": {
+    "schema_version": {"enum": ["1.0", "1.1"]},
+    "profile_key": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+    "display_name": {"type": "string", "minLength": 1},
+    "offline_only": {"const": true},
+    "manifest": {"type": "string", "pattern": "^(?!.*://)(?!/).*\\.json$"},
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent_login_template", "customer_login_template", "email_template", "agent_firstname", "customer_firstname", "dummy_only", "notifications"],
+      "properties": {
+        "agent_login_template": {"type": "string", "pattern": "\\{key\\}"},
+        "customer_login_template": {"type": "string", "pattern": "\\{key\\}"},
+        "email_template": {"type": "string", "pattern": "@example\\.invalid$"},
+        "agent_firstname": {"type": "string", "minLength": 1},
+        "customer_firstname": {"type": "string", "minLength": 1},
+        "dummy_only": {"const": true},
+        "notifications": {"const": false}
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field_labels", "option_labels", "core_workflow_names", "object_manager_positions"],
+      "properties": {
+        "field_labels": {"$ref": "#/$defs/string_map"},
+        "option_labels": {"$ref": "#/$defs/string_map"},
+        "core_workflow_names": {"$ref": "#/$defs/string_map"},
+        "object_manager_positions": {
+          "type": "object",
+          "required": ["Ticket", "User", "Organization", "Group"],
+          "additionalProperties": false,
+          "properties": {
+            "Ticket": {"$ref": "#/$defs/position"},
+            "User": {"$ref": "#/$defs/position"},
+            "Organization": {"$ref": "#/$defs/position"},
+            "Group": {"$ref": "#/$defs/position"}
+          }
+        }
+      }
+    },
+    "uat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title_prefix", "article_visibility", "retention", "outbound_communication", "defaults", "scenarios", "access_matrix"],
+      "properties": {
+        "title_prefix": {"type": "string", "minLength": 1},
+        "article_visibility": {"const": "internal"},
+        "retention": {"const": "close_and_retain"},
+        "outbound_communication": {"const": false},
+        "defaults": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$"},
+          "additionalProperties": {"type": ["string", "null"]}
+        },
+        "scenarios": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/scenario"}
+        },
+        "access_matrix": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["seed_keys"],
+          "properties": {
+            "seed_keys": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}
+          }
+        },
+        "handoff_probe": {"$ref": "#/$defs/handoff_probe"},
+        "job_probe": {"$ref": "#/$defs/job_probe"}
+      }
+    }
+  },
+  "$defs": {
+    "string_map": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "minLength": 1}
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "step"],
+      "properties": {
+        "start": {"type": "integer", "minimum": 1},
+        "step": {"type": "integer", "minimum": 1}
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "required": ["key", "number", "kind", "group", "customer", "agent", "label", "expected_tags"],
+      "additionalProperties": {"type": ["string", "null"]},
+      "properties": {
+        "key": {"type": "string", "minLength": 1},
+        "number": {"type": "integer", "minimum": 1},
+        "kind": {"type": "string", "minLength": 1},
+        "group": {"type": "string", "minLength": 1},
+        "customer": {"type": "string", "minLength": 1},
+        "agent": {"type": "string", "minLength": 1},
+        "label": {"type": "string", "minLength": 1},
+        "expected_tags": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+        "correlation_template": {"type": "string", "pattern": "\\{run\\}"},
+        "synthetic_attachment": {"type": "boolean"}
+      }
+    },
+    "handoff_probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ticket_key", "agent", "source_group", "target_group", "pending_tag", "recorded_tag", "expected_owner"],
+      "properties": {
+        "ticket_key": {"type": "string", "minLength": 1},
+        "agent": {"type": "string", "minLength": 1},
+        "source_group": {"type": "string", "minLength": 1},
+        "target_group": {"type": "string", "minLength": 1},
+        "pending_tag": {"type": "string", "minLength": 1},
+        "recorded_tag": {"type": "string", "minLength": 1},
+        "expected_owner": {"const": "unassigned"}
+      }
+    },
+    "job_probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["job_key", "ticket_key", "agent", "subject", "marker_tag", "expected_internal_notes", "final_schedule"],
+      "properties": {
+        "job_key": {"type": "string", "minLength": 1},
+        "ticket_key": {"type": "string", "minLength": 1},
+        "agent": {"type": "string", "minLength": 1},
+        "subject": {"type": "string", "minLength": 1},
+        "marker_tag": {"type": "string", "minLength": 1},
+        "expected_internal_notes": {"type": "integer", "minimum": 1},
+        "final_schedule": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

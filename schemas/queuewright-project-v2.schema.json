@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/queuewright-project-v2.schema.json",
+  "title": "Local Queuewright Studio project V2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project_schema_version", "id", "name", "target_schema_version", "workbook", "extensions", "bundle"],
+  "properties": {
+    "project_schema_version": {"const": "2.0"},
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+    "name": {"type": "string", "minLength": 1},
+    "target_schema_version": {"enum": ["1.0", "1.1"]},
+    "workbook": {
+      "type": "object", "additionalProperties": false,
+      "required": ["organization", "services", "policies", "capability_decisions", "uat"],
+      "properties": {
+        "organization": {"$ref": "#/$defs/safe_object"},
+        "services": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/safe_object"}
+        },
+        "policies": {"$ref": "#/$defs/safe_object"},
+        "capability_decisions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "organization",
+            "service-topology",
+            "organizations-customers",
+            "roles-acl",
+            "identity-security",
+            "fields-core-workflows",
+            "calendars-sla",
+            "tags",
+            "overviews-macros-templates-text-modules-checklists",
+            "triggers-schedulers-report-profiles",
+            "channels-postmaster-signatures",
+            "webhooks-integrations",
+            "knowledge-base",
+            "time-accounting",
+            "privacy-retention",
+            "branding-ticket-settings",
+            "ai",
+            "uat-evidence",
+            "platform-dr"
+          ],
+          "properties": {
+            "organization": {"$ref": "#/$defs/capability_decision"},
+            "service-topology": {"$ref": "#/$defs/capability_decision"},
+            "organizations-customers": {"$ref": "#/$defs/capability_decision"},
+            "roles-acl": {"$ref": "#/$defs/capability_decision"},
+            "identity-security": {"$ref": "#/$defs/capability_decision"},
+            "fields-core-workflows": {"$ref": "#/$defs/capability_decision"},
+            "calendars-sla": {"$ref": "#/$defs/capability_decision"},
+            "tags": {"$ref": "#/$defs/capability_decision"},
+            "overviews-macros-templates-text-modules-checklists": {"$ref": "#/$defs/capability_decision"},
+            "triggers-schedulers-report-profiles": {"$ref": "#/$defs/capability_decision"},
+            "channels-postmaster-signatures": {"$ref": "#/$defs/capability_decision"},
+            "webhooks-integrations": {"$ref": "#/$defs/capability_decision"},
+            "knowledge-base": {"$ref": "#/$defs/capability_decision"},
+            "time-accounting": {"$ref": "#/$defs/capability_decision"},
+            "privacy-retention": {"$ref": "#/$defs/capability_decision"},
+            "branding-ticket-settings": {"$ref": "#/$defs/capability_decision"},
+            "ai": {"$ref": "#/$defs/capability_decision"},
+            "uat-evidence": {"$ref": "#/$defs/capability_decision"},
+            "platform-dr": {"$ref": "#/$defs/capability_decision"}
+          }
+        },
+        "uat": {"$ref": "#/$defs/safe_object"}
+      }
+    },
+    "extensions": {"$ref": "#/$defs/safe_object"},
+    "bundle": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profile", "manifest", "resource_ownership", "feature_state"],
+      "properties": {
+        "profile": {"$ref": "queuewright-profile.schema.json"},
+        "manifest": {"$ref": "queuewright-desired-state.schema.json"},
+        "resource_ownership": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "pattern": "^(groups|organizations|roles|agents|customers|tags|overviews|macros|checklist_templates|triggers|jobs|report_profiles|object_manager_fields|core_workflows|uat_scenarios):.+$"
+          },
+          "additionalProperties": {
+            "$ref": "queuewright-project.schema.json#/$defs/resource_owner"
+          }
+        },
+        "feature_state": {
+          "$ref": "queuewright-project.schema.json#/properties/feature_state"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "capability_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["completion", "delivery", "risk", "dependencies", "enabled"],
+      "properties": {
+        "completion": {"enum": ["decision_required", "ready", "blocked"]},
+        "delivery": {"enum": ["automated", "guided_manual", "verify_only", "unsupported"]},
+        "risk": {"enum": ["low", "medium", "high", "critical"]},
+        "dependencies": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+          "uniqueItems": true
+        },
+        "enabled": {"type": "boolean"}
+      }
+    },
+    "safe_object": {"type": "object", "additionalProperties": {"$ref": "#/$defs/safe_value"}},
+    "safe_value": {"oneOf": [
+      {"type": "null"}, {"type": "boolean"}, {"type": "number"},
+      {"type": "string", "pattern": "^(?!.*://).*"},
+      {"type": "array", "items": {"$ref": "#/$defs/safe_value"}},
+      {"$ref": "#/$defs/safe_object"}
+    ]}
+  }
+}

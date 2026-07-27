@@ -1,0 +1,23 @@
+{
+  "capabilities": [
+    {"id":"organization","domain":"organization","delivery":"guided_manual","default_completion":"decision_required","risk":"medium","dependencies":[]},
+    {"id":"service-topology","domain":"service_topology","delivery":"automated","default_completion":"decision_required","risk":"high","dependencies":["organization"]},
+    {"id":"organizations-customers","domain":"organizations_customers","delivery":"automated","default_completion":"decision_required","risk":"medium","dependencies":["organization"]},
+    {"id":"roles-acl","domain":"roles_acl","delivery":"automated","default_completion":"decision_required","risk":"high","dependencies":["service-topology"]},
+    {"id":"identity-security","domain":"identity_security","delivery":"guided_manual","default_completion":"decision_required","risk":"high","dependencies":["roles-acl"]},
+    {"id":"fields-core-workflows","domain":"fields_core_workflows","delivery":"guided_manual","default_completion":"decision_required","risk":"high","dependencies":["roles-acl"]},
+    {"id":"calendars-sla","domain":"calendars_sla","delivery":"guided_manual","default_completion":"decision_required","risk":"high","dependencies":["service-topology"]},
+    {"id":"tags","domain":"tags","delivery":"automated","default_completion":"decision_required","risk":"low","dependencies":[]},
+    {"id":"overviews-macros-templates-text-modules-checklists","domain":"agent_productivity","delivery":"automated","default_completion":"decision_required","risk":"medium","dependencies":["roles-acl","tags"]},
+    {"id":"triggers-schedulers-report-profiles","domain":"automation_reporting","delivery":"automated","default_completion":"decision_required","risk":"high","dependencies":["tags","fields-core-workflows"]},
+    {"id":"channels-postmaster-signatures","domain":"channels","delivery":"guided_manual","default_completion":"decision_required","risk":"high","dependencies":["identity-security"]},
+    {"id":"webhooks-integrations","domain":"integrations","delivery":"unsupported","default_completion":"blocked","risk":"critical","dependencies":["identity-security"]},
+    {"id":"knowledge-base","domain":"knowledge_base","delivery":"guided_manual","default_completion":"decision_required","risk":"medium","dependencies":["organization"]},
+    {"id":"time-accounting","domain":"time_accounting","delivery":"guided_manual","default_completion":"decision_required","risk":"medium","dependencies":["roles-acl"]},
+    {"id":"privacy-retention","domain":"privacy_retention","delivery":"guided_manual","default_completion":"decision_required","risk":"high","dependencies":["identity-security"]},
+    {"id":"branding-ticket-settings","domain":"branding_ticket_settings","delivery":"guided_manual","default_completion":"decision_required","risk":"medium","dependencies":["organization"]},
+    {"id":"ai","domain":"ai","delivery":"unsupported","default_completion":"blocked","risk":"critical","dependencies":["identity-security"]},
+    {"id":"uat-evidence","domain":"uat_evidence","delivery":"verify_only","default_completion":"decision_required","risk":"medium","dependencies":["organizations-customers","roles-acl"]},
+    {"id":"platform-dr","domain":"platform_dr","delivery":"verify_only","default_completion":"decision_required","risk":"critical","dependencies":["identity-security"]}
+  ]
+}
