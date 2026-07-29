@@ -3,13 +3,13 @@ import type {
   FeatureDefinition,
   FeatureId,
   KeyedResource,
-  ResourceOwner,
   StudioProject,
 } from '../types'
 import { HANDOFF_MODES } from './access'
+import { addClassificationResources } from './feature-classification'
+import { removeResourcesOwnedBy } from './feature-removal'
 import { clone, finalize } from './mutate'
-
-type ObjectFieldCollection = 'ticket_fields' | 'user_fields' | 'organization_fields' | 'group_fields'
+import { objectFields, type ObjectFieldCollection } from './object-field-reader'
 
 const forbiddenActions = [
   'ai',
@@ -21,165 +21,6 @@ const forbiddenActions = [
   'public_article',
   'webhook',
 ]
-
-function ownedResourceIds(project: StudioProject, owner: FeatureId): Set<string> {
-  return new Set(
-    Object.entries(project.resource_ownership)
-      .filter(([, value]) => value === owner)
-      .map(([id]) => id),
-  )
-}
-
-function filterOwnedResources(collection: string, items: KeyedResource[], owned: Set<string>): KeyedResource[] {
-  return items.filter((item) => !owned.has(`${collection}:${item.key}`))
-}
-
-function objectFields(project: StudioProject, collection: ObjectFieldCollection) {
-  switch (collection) {
-    case 'ticket_fields': return project.manifest.object_manager.ticket_fields
-    case 'user_fields': return project.manifest.object_manager.user_fields
-    case 'organization_fields': return project.manifest.object_manager.organization_fields
-    case 'group_fields': return project.manifest.object_manager.group_fields
-  }
-}
-
-function replaceObjectFields(project: StudioProject, collection: ObjectFieldCollection, fields: ReturnType<typeof objectFields>): void {
-  switch (collection) {
-    case 'ticket_fields': project.manifest.object_manager.ticket_fields = fields; return
-    case 'user_fields': project.manifest.object_manager.user_fields = fields; return
-    case 'organization_fields': project.manifest.object_manager.organization_fields = fields; return
-    case 'group_fields': project.manifest.object_manager.group_fields = fields; return
-  }
-}
-
-function removeOwnedCollections(project: StudioProject, owned: Set<string>): void {
-  project.manifest.overviews = filterOwnedResources('overviews', project.manifest.overviews, owned)
-  project.manifest.macros = filterOwnedResources('macros', project.manifest.macros, owned)
-  project.manifest.checklist_templates = filterOwnedResources('checklist_templates', project.manifest.checklist_templates, owned)
-  project.manifest.triggers = filterOwnedResources('triggers', project.manifest.triggers, owned)
-  project.manifest.jobs = filterOwnedResources('jobs', project.manifest.jobs, owned)
-  project.manifest.report_profiles = filterOwnedResources('report_profiles', project.manifest.report_profiles, owned)
-}
-
-function replaceRemovedTags(project: StudioProject, candidateTags: Set<string>): void {
-  const fallbackTag = project.manifest.tags.find(
-    (tag) => !candidateTags.has(tag) && tag.endsWith('/uat'),
-  ) ?? project.manifest.tags.find((tag) => !candidateTags.has(tag))
-  for (const scenario of project.profile.uat.scenarios) {
-    if (!Array.isArray(scenario.expected_tags)) continue
-    const remaining = scenario.expected_tags.filter(
-      (tag): tag is string => typeof tag === 'string' && !candidateTags.has(tag),
-    )
-    if (remaining.length === 0 && fallbackTag) remaining.push(fallbackTag)
-    scenario.expected_tags = remaining
-  }
-}
-
-function removeOwnedFields(project: StudioProject, owned: Set<string>): void {
-  const removedLogicalNames = new Set<string>()
-  for (const collection of ['ticket_fields', 'user_fields', 'organization_fields', 'group_fields'] as const) {
-    const removedFields = objectFields(project, collection).filter(
-      (field) => owned.has(`object_manager_fields:${field.name}`),
-    )
-    for (const field of removedFields) removedLogicalNames.add(field.name.replace(project.manifest.technical_namespace, ''))
-    replaceObjectFields(project, collection, objectFields(project, collection).filter(
-      (field) => !owned.has(`object_manager_fields:${field.name}`),
-    ))
-  }
-  project.profile.uat.scenarios = project.profile.uat.scenarios.map((scenario) =>
-    Object.fromEntries(Object.entries(scenario).filter(([key]) => !removedLogicalNames.has(key))) as KeyedResource,
-  )
-}
-
-function removeFeatureProbes(project: StudioProject, owner: FeatureId): void {
-  if (owner === 'cross_department_handoff') delete project.profile.uat.handoff_probe
-  if (owner === 'scheduled_reviews') delete project.profile.uat.job_probe
-  if (owner === 'sensitive_area_handling') {
-    for (const group of project.manifest.groups) delete group.restricted
-  }
-}
-
-function referencedTags(project: StudioProject): Set<string> {
-  const tags = new Set<string>()
-  for (const resource of [...project.manifest.macros, ...project.manifest.triggers, ...project.manifest.jobs]) {
-    if (!Array.isArray(resource.actions)) continue
-    for (const action of resource.actions) {
-      if (typeof action === 'string' && action.startsWith('add_tag:')) tags.add(action.slice('add_tag:'.length))
-    }
-  }
-  for (const scenario of project.profile.uat.scenarios) {
-    if (!Array.isArray(scenario.expected_tags)) continue
-    for (const tag of scenario.expected_tags) if (typeof tag === 'string') tags.add(tag)
-  }
-  return tags
-}
-
-function ownershipAfterFeatureRemoval(id: string): ResourceOwner {
-  return id.startsWith('groups:')
-      || id.startsWith('organizations:')
-      || id.startsWith('roles:')
-      || id.startsWith('core_workflows:')
-      ? 'core'
-      : id.startsWith('uat_scenarios:')
-        ? 'access_matrix'
-        : 'custom'
-}
-
-function restoreOwnership(project: StudioProject, owner: FeatureId): void {
-  project.resource_ownership = Object.fromEntries(
-    Object.entries(project.resource_ownership).map(([id, value]) => value === owner ? [id, ownershipAfterFeatureRemoval(id)] : [id, value]),
-  )
-}
-
-function removeResourcesOwnedBy(project: StudioProject, owner: FeatureId): void {
-  const owned = ownedResourceIds(project, owner)
-  removeOwnedCollections(project, owned)
-  const candidateTags = new Set(
-    project.manifest.tags.filter((tag) => owned.has(`tags:${tag}`)),
-  )
-  replaceRemovedTags(project, candidateTags)
-  removeOwnedFields(project, owned)
-  removeFeatureProbes(project, owner)
-  const retainedTags = referencedTags(project)
-  project.manifest.tags = project.manifest.tags.filter(
-    (tag) => !candidateTags.has(tag) || retainedTags.has(tag),
-  )
-  restoreOwnership(project, owner)
-}
-
-function addClassificationResources(project: StudioProject, feature: FeatureId): boolean {
-  const namespace = project.manifest.technical_namespace
-  const ensureField = (
-    collection: ObjectFieldCollection,
-    suffix: string,
-    options: string[],
-  ) => {
-    const name = `${namespace}${suffix}`
-    const fields = objectFields(project, collection)
-    if (!fields.some((field) => field.name === name)) fields.push({ name, options, type: 'select' })
-  }
-
-  switch (feature) {
-    case 'ticket_fields': {
-      const options = project.manifest.groups.flatMap((group) =>
-        group.service_code ? [group.service_code] : [],
-      )
-      ensureField('ticket_fields', 'service_code', options)
-      return true
-    }
-    case 'user_classification':
-      ensureField('user_fields', 'user_population', ['students', 'faculty', 'professional_services'])
-      return true
-    case 'organization_classification':
-      ensureField('organization_fields', 'organization_class', ['students', 'faculty', 'professional_services'])
-      return true
-    case 'group_classification':
-      ensureField('group_fields', 'group_class', ['container', 'service', 'restricted'])
-      return true
-    default:
-      return false
-  }
-}
 
 function addOperationalResources(project: StudioProject, feature: FeatureId): boolean {
   const prefix = project.manifest.managed_prefix

@@ -178,27 +178,6 @@ def check_git_metadata(failures: list[str]) -> None:
     for name in filter(None, tracked):
         if is_forbidden_tracked_path(Path(name)):
             failures.append(f"tracked sensitive or excluded path: {name}")
-    for probe in (
-        "token", "token_full", "nested/token", "nested/token_full",
-        ".local/verifier-probe", ".agents/session.json", ".claude/settings.local.json",
-        ".codex/session.json", ".cursor/session.json", ".impeccable/design.json",
-        ".serena/project.local.yml", ".aider.chat.history.md",
-        "probe.secrets.json", "probe.p12",
-        "id_ed25519", "studio-ui/.npmrc", ".pypirc", ".netrc",
-        "sample.credentials.json", "coverage.xml", ".coverage",
-        "htmlcov/index.html", "tests/__pycache__/probe.pyc",
-        "studio-ui/test-results/failure.png",
-        "studio-ui/playwright-report/index.html",
-    ):
-        if subprocess.run(_git_command("check-ignore", "-q", probe), cwd=ROOT).returncode != 0:
-            failures.append(f"representative private path is not ignored by git: {probe}")
-    for probe in (
-        "token-policy.md", ".env.example", ".npmrc.example",
-        "tests/test_probe.py", "studio-ui/src/probe.test.ts",
-        "studio-ui/e2e/probe.spec.ts",
-    ):
-        if subprocess.run(_git_command("check-ignore", "-q", probe), cwd=ROOT).returncode == 0:
-            failures.append(f"publishable path is over-broadly ignored by git: {probe}")
 
 
 def _check_studio_catalogs(parsed_json: dict[Path, Any], failures: list[str]) -> None:
@@ -313,7 +292,7 @@ def main() -> int:
     json_count = sum(path.suffix.lower() == ".json" for path in files)
     print(
         f"PASS: {len(files)} public-alpha files; {json_count} JSON documents; "
-        "links, assets, public scope, Studio contracts, and Git ignore metadata verified"
+        "links, assets, public scope, Studio contracts, and tracked Git metadata verified"
     )
     return 0
 

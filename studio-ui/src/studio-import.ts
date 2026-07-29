@@ -86,12 +86,8 @@ export async function importFilesIntoStudio(
   onReplace: ReplaceStudio,
 ): Promise<string | undefined> {
   const files = [...input]
-  if (files.length < 1 || files.length > 2) {
-    return 'Choose one project or bundle file, or a profile and manifest pair.'
-  }
-  if (files.some((file) => file.size > 2 * 1024 * 1024)) {
-    return 'Each import file must be 2 MiB or smaller.'
-  }
+  const validationError = importFileValidation(files)
+  if (validationError) return validationError
   try {
     const values = await Promise.all(files.map(async (file) => JSON.parse(await readFile(file))))
     await importValues(values, onReplace)
@@ -99,6 +95,11 @@ export async function importFilesIntoStudio(
     return error instanceof Error ? error.message : 'The selected JSON could not be imported.'
   }
   return undefined
+}
+
+function importFileValidation(files: File[]): string | undefined {
+  if (files.length < 1 || files.length > 2) return 'Choose one project or bundle file, or a profile and manifest pair.'
+  return files.some((file) => file.size > 2 * 1024 * 1024) ? 'Each import file must be 2 MiB or smaller.' : undefined
 }
 
 export function findBundle(values: unknown[]): { profile: ProfileDocument; manifest: ManifestDocument } | undefined {
