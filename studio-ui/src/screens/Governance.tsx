@@ -28,16 +28,56 @@ function Risk({ value }: { value: CapabilityRisk }) {
   return <span className={`risk-state risk-${value}`}>{value} risk</span>
 }
 
-export function Governance() {
-  const { blueprint, updateBlueprint } = useStudio()
-  const decisions = blueprint ? Object.entries(blueprint.workbook.capability_decisions) : []
+function guidanceFor(id: string): string | undefined {
+  return Object.entries(capabilityGuidance).find(([key]) => key === id)?.at(1)
+}
+
+function DecisionRow({
+  blueprint,
+  decision,
+  id,
+  updateBlueprint,
+}: {
+  blueprint: NonNullable<ReturnType<typeof useStudio>['blueprint']>
+  decision: CapabilityDecision
+  id: string
+  updateBlueprint: ReturnType<typeof useStudio>['updateBlueprint']
+}) {
+  const deliveryIsLocked = decision.delivery === 'automated' || decision.delivery === 'unsupported'
+  const deliveryHint = decision.delivery === 'automated'
+    ? 'Configure this capability in the preceding design steps.'
+    : decision.delivery === 'unsupported'
+      ? 'This capability remains disabled because this workflow cannot deliver it.'
+      : undefined
+  const manualBoundary = decision.delivery === 'guided_manual'
+    ? 'Manual delivery: assign and evidence the administrator work outside this studio.'
+    : decision.delivery === 'unsupported'
+      ? 'Unsupported: retain this as a visible blocker; no workaround is applied here.'
+      : undefined
+  return (
+    <article className="governance-row" key={id}>
+      <div className="governance-title"><strong>{title(id)}</strong><small>{guidanceFor(id) ?? 'Capability decision'}</small></div>
+      <label className="governance-control">Included<input type="checkbox" checked={decision.enabled} disabled={deliveryIsLocked} title={deliveryHint} onChange={(event) => updateBlueprint(replaceDecision(blueprint, id, { enabled: event.target.checked }))} aria-label={`Include ${title(id)}`} /></label>
+      <label className="governance-control">Completion<select value={decision.completion} disabled={decision.delivery === 'unsupported'} onChange={(event) => updateBlueprint(replaceDecision(blueprint, id, { completion: event.target.value as CapabilityCompletion }))} aria-label={`${title(id)} completion`}>{completions.map((completion) => <option value={completion} key={completion}>{title(completion)}</option>)}</select></label>
+      <div className="governance-evidence"><Delivery value={decision.delivery} /><Risk value={decision.risk} />{decision.dependencies.length ? <span><Link2 size={15} aria-hidden="true" /> Depends on {decision.dependencies.map(title).join(', ')}</span> : <span>No capability dependencies</span>}</div>
+      {manualBoundary ? <p className="manual-boundary"><AlertTriangle size={16} aria-hidden="true" /> {manualBoundary}</p> : null}
+    </article>
+  )
+}
+
+function decisionsByDomain(decisions: Array<[string, CapabilityDecision]>) {
   const domains = new Map<string, Array<[string, CapabilityDecision]>>()
   for (const decision of decisions) {
     const domain = capabilityDomains[decision[0]] ?? 'Unclassified capability'
-    const list = domains.get(domain) ?? []
-    list.push(decision)
-    domains.set(domain, list)
+    domains.set(domain, [...(domains.get(domain) ?? []), decision])
   }
+  return domains
+}
+
+export function Governance() {
+  const { blueprint, updateBlueprint } = useStudio()
+  const decisions = blueprint ? Object.entries(blueprint.workbook.capability_decisions) : []
+  const domains = decisionsByDomain(decisions)
   return (
     <section className="governance-screen">
       <PageHeader
@@ -50,13 +90,7 @@ export function Governance() {
         <section className="governance-domain" aria-labelledby={`domain-${domain}`} key={domain}>
           <SectionHeading id={`domain-${domain}`}>{domain}</SectionHeading>
           {items.map(([id, decision]) => (
-            <article className="governance-row" key={id}>
-              <div className="governance-title"><strong>{title(id)}</strong><small>{capabilityGuidance[id] ?? 'Capability decision'}</small></div>
-              <label className="governance-control">Included<input type="checkbox" checked={decision.enabled} disabled={decision.delivery === 'automated' || decision.delivery === 'unsupported'} title={decision.delivery === 'automated' ? 'Configure this capability in the preceding design steps.' : decision.delivery === 'unsupported' ? 'This capability remains disabled because this workflow cannot deliver it.' : undefined} onChange={(event) => updateBlueprint(replaceDecision(blueprint!, id, { enabled: event.target.checked }))} aria-label={`Include ${title(id)}`} /></label>
-              <label className="governance-control">Completion<select value={decision.completion} disabled={decision.delivery === 'unsupported'} onChange={(event) => updateBlueprint(replaceDecision(blueprint!, id, { completion: event.target.value as CapabilityCompletion }))} aria-label={`${title(id)} completion`}>{completions.map((completion) => <option value={completion} key={completion}>{title(completion)}</option>)}</select></label>
-              <div className="governance-evidence"><Delivery value={decision.delivery} /><Risk value={decision.risk} />{decision.dependencies.length ? <span><Link2 size={15} aria-hidden="true" /> Depends on {decision.dependencies.map(title).join(', ')}</span> : <span>No capability dependencies</span>}</div>
-              {decision.delivery === 'guided_manual' || decision.delivery === 'unsupported' ? <p className="manual-boundary"><AlertTriangle size={16} aria-hidden="true" /> {decision.delivery === 'unsupported' ? 'Unsupported: retain this as a visible blocker; no workaround is applied here.' : 'Manual delivery: assign and evidence the administrator work outside this studio.'}</p> : null}
-            </article>
+            <DecisionRow blueprint={blueprint!} decision={decision} id={id} key={id} updateBlueprint={updateBlueprint} />
           ))}
         </section>
       ))}

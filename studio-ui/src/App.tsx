@@ -21,20 +21,20 @@ import type { ComponentType } from 'react'
 import type { StepId } from './types'
 import './styles/index.css'
 
-const screens: Record<StepId, ComponentType> = {
-  start: Start,
-  organization: Organization,
-  structure: Structure,
-  access: Access,
-  features: Features,
-  governance: Governance,
-  'test-data': Readiness,
-  review: Review,
-}
+const screens: Array<[StepId, ComponentType]> = [
+  ['start', Start],
+  ['organization', Organization],
+  ['structure', Structure],
+  ['access', Access],
+  ['features', Features],
+  ['governance', Governance],
+  ['test-data', Readiness],
+  ['review', Review],
+]
 
 function Studio() {
   const { step } = useStudio()
-  const Screen = screens[step]
+  const Screen = screens.find(([id]) => id === step)?.[1] ?? Start
   return (
     <div className="app-shell">
       <TopBar />

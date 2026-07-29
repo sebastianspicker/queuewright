@@ -53,8 +53,8 @@ export function StepRail() {
             <p>{phase.label}</p>
             {phase.steps.map((id) => {
               const itemIndex = steps.findIndex(([candidate]) => candidate === id)
-              const label = steps[itemIndex][1]
-              const Icon = stepIcons[id]
+              const label = steps.at(itemIndex)?.[1] ?? id
+              const Icon = Object.entries(stepIcons).find(([key]) => key === id)?.[1] ?? PlayCircle
               const isActive = step === id
               const isDone = itemIndex < currentIndex
               const className = [

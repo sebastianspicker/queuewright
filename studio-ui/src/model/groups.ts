@@ -109,7 +109,9 @@ function addLeafDependencies(
   if (serviceField) {
     serviceField.options.push(code)
     scenario.service_code = code
-    project.profile.presentation.option_labels[code] = label
+    const labels = new Map(Object.entries(project.profile.presentation.option_labels))
+    labels.set(code, label)
+    project.profile.presentation.option_labels = Object.fromEntries(labels)
   }
   project.profile.uat.scenarios.push(scenario)
   project.profile.uat.access_matrix.seed_keys.push(scenario.key)
@@ -117,10 +119,11 @@ function addLeafDependencies(
 
 function removeLeafDependencies(project: StudioProject, keys: Set<string>): void {
   for (const role of project.manifest.roles) {
-    for (const permission of Object.keys(role.acl)) {
-      role.acl[permission] = role.acl[permission].filter((key) => !keys.has(key))
-      if (role.acl[permission].length === 0) delete role.acl[permission]
-    }
+    role.acl = Object.fromEntries(
+      Object.entries(role.acl)
+        .map(([permission, allowed]) => [permission, allowed.filter((key) => !keys.has(key))])
+        .filter(([, allowed]) => allowed.length > 0),
+    )
   }
   const removedRoles = new Set(
     project.manifest.roles
@@ -190,7 +193,7 @@ export function addGroup(
   if (kind === 'container' && source.target_schema_version === '1.0') {
     return { project: source, key: '' }
   }
-  let createdKey = ''
+  let createdGroupId: string | undefined
   const project = mutateProject(source, (draft) => {
     const selected = draft.manifest.groups.find(
       (group) => group.key === selectedKey,
@@ -198,10 +201,10 @@ export function addGroup(
     const parent = selected?.kind === 'container'
       ? selected.key
       : selected?.parent ?? rootGroup(draft)?.key
-    createdKey = uniqueKey(draft, kind === 'container' ? 'new_unit' : 'new_service')
+    createdGroupId = uniqueKey(draft, kind === 'container' ? 'new_unit' : 'new_service')
     const group: GroupResource = {
       active: true,
-      key: createdKey,
+      key: createdGroupId,
       kind,
       name: `${draft.manifest.managed_prefix} ${kind === 'container' ? 'New unit' : 'New service'}`,
       ...(parent ? { parent } : {}),
@@ -210,7 +213,7 @@ export function addGroup(
     draft.manifest.groups.push(group)
     if (kind === 'leaf') addLeafDependencies(draft, group)
   })
-  return { project, key: createdKey }
+  return { project, key: createdGroupId ?? String() }
 }
 
 export function renameGroup(
