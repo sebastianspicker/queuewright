@@ -28,13 +28,27 @@ export function setHandoffModes(
   })
 }
 
+export function removeGroupPermission(role: RoleResource, groupKey: string): void {
+  for (const acl of Object.values(role.acl)) {
+    if (!acl) continue
+    const index = acl.indexOf(groupKey)
+    if (index >= 0) acl.splice(index, 1)
+  }
+  role.acl = Object.fromEntries(
+    Object.entries(role.acl).filter(([, groups]) => groups && groups.length > 0),
+  )
+}
+
 export function permissionFor(role: RoleResource, group: string): Permission {
   if (role.acl.full?.includes(group)) return 'work'
   if (role.acl.create?.includes(group)) return 'create'
-  if (
-    role.acl.read?.includes(group)
-    || role.acl.read_change_overview?.includes(group)
-  ) return 'read'
+  const readGroups = [
+    ...(role.acl.read ?? []),
+    ...(role.acl.read_change_overview ?? []),
+  ]
+  if (readGroups.includes(group)) {
+    return 'read'
+  }
   return 'none'
 }
 
@@ -47,16 +61,28 @@ export function setPermission(
   return mutateProject(source, (project) => {
     const role = project.manifest.roles.find((item) => item.key === roleKey)
     if (!role) return
-    for (const acl of Object.values(role.acl)) {
-      const index = acl.indexOf(groupKey)
-      if (index >= 0) acl.splice(index, 1)
-    }
-    for (const key of Object.keys(role.acl)) {
-      if (role.acl[key].length === 0) delete role.acl[key]
-    }
-    const aclKey = permission === 'work' ? 'full' : permission
-    if (aclKey !== 'none') {
-      role.acl[aclKey] = [...(role.acl[aclKey] ?? []), groupKey].sort()
-    }
+    removeGroupPermission(role, groupKey)
+    addGroupPermission(role, groupKey, permission)
   })
+}
+
+function appendFull(role: RoleResource, groupKey: string): void {
+  role.acl.full = [...(role.acl.full ?? []), groupKey].sort()
+}
+
+function appendCreate(role: RoleResource, groupKey: string): void {
+  role.acl.create = [...(role.acl.create ?? []), groupKey].sort()
+}
+
+function appendRead(role: RoleResource, groupKey: string): void {
+  role.acl.read = [...(role.acl.read ?? []), groupKey].sort()
+}
+
+export function addGroupPermission(role: RoleResource, groupKey: string, permission: Permission): void {
+  const updates = new Map<Permission, typeof appendFull>([
+    ['work', appendFull],
+    ['create', appendCreate],
+    ['read', appendRead],
+  ])
+  updates.get(permission)?.(role, groupKey)
 }

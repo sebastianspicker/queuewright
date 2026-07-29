@@ -11,13 +11,11 @@
  * Or from studio-ui:
  *   node ../scripts/capture_studio_screenshots.mjs
  */
-import { createRequire } from 'node:module'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const studioUi = path.join(root, 'studio-ui')
 const outDir = path.join(root, 'docs', 'screenshots')
 const baseURL = process.env.STUDIO_URL ?? 'http://127.0.0.1:5173'
 
@@ -25,9 +23,7 @@ async function loadPlaywright() {
   try {
     return await import('@playwright/test')
   } catch {
-    const require = createRequire(path.join(studioUi, 'package.json'))
-    const resolved = require.resolve('@playwright/test')
-    return import(pathToFileURL(resolved).href)
+    return await import('../studio-ui/node_modules/@playwright/test/index.mjs')
   }
 }
 

@@ -190,6 +190,7 @@ accessibility conformance, or tenant interaction. See
 | `schemas/` | JSON Schema documents |
 | `tests/` | Python unit and boundary tests |
 | `scripts/verify_repo.py` | Repository and documentation checks |
+| `scripts/verify_git_ignores.sh` | Git-native private and publishable path checks |
 | `scripts/capture_studio_screenshots.mjs` | Playwright screenshot capture |
 | `docs/` | Configuration, Studio, security-boundary, and release documentation |
 
@@ -215,6 +216,7 @@ Run the Python checks from the repository root:
 python3 -m queuewright self-test
 python3 -m unittest discover -s tests -v
 python3 scripts/verify_repo.py
+bash scripts/verify_git_ignores.sh
 ```
 
 Run the frontend checks from `studio-ui/` after `npm ci`:

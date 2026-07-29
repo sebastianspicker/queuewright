@@ -13,6 +13,7 @@ Describe the user-visible or contract-level change.
 - [ ] `python3 -m queuewright self-test`
 - [ ] `python3 -m unittest discover -s tests -v`
 - [ ] `python3 scripts/verify_repo.py`
+- [ ] `bash scripts/verify_git_ignores.sh`
 - [ ] `npm run test` (`studio-ui/`, when affected)
 - [ ] `npm run build` (`studio-ui/`, when affected)
 - [ ] `npm run test:e2e` (`studio-ui/`, when affected)

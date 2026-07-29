@@ -121,7 +121,9 @@ export function title(value: string): string {
 }
 
 export function organizationValue(project: StudioProjectV2, key: string): string {
-  const value = project.workbook.organization[key]
+  const value = Object.entries(project.workbook.organization).find(
+    ([candidate]) => candidate === key,
+  )?.[1]
   return typeof value === 'string' ? value : ''
 }
 
@@ -148,30 +150,39 @@ export function replaceDecision(
   patch: Partial<Pick<CapabilityDecision, 'enabled' | 'completion'>>,
 ): StudioProjectV2 {
   const source = project.workbook.capability_decisions
-  if (!source[id]) return project
+  const target = Object.entries(source).find(([candidate]) => candidate === id)
+  if (!target) return project
   const decisions = Object.fromEntries(
     Object.entries(source).map(([key, decision]) => [key, { ...decision }]),
   )
-  const setEnabled = (capabilityId: string, enabled: boolean) => {
-    const decision = decisions[capabilityId]
+  const updatedTarget = Object.entries(decisions).find(([candidate]) => candidate === id)?.[1]
+  const decisionFor = (capabilityId: string) => Object.entries(decisions).find(
+    ([candidate]) => candidate === capabilityId,
+  )?.[1]
+  const disable = (capabilityId: string) => {
+    const decision = decisionFor(capabilityId)
     if (!decision) return
-    decision.enabled = enabled
-    if (!enabled) {
-      decision.completion = decision.delivery === 'unsupported'
-        ? 'blocked'
-        : 'decision_required'
-      for (const [dependentId, dependent] of Object.entries(decisions)) {
-        if (dependent.dependencies.includes(capabilityId)) {
-          setEnabled(dependentId, false)
-        }
-      }
-      return
+    decision.enabled = false
+    decision.completion = decision.delivery === 'unsupported' ? 'blocked' : 'decision_required'
+    for (const [dependentId, dependent] of Object.entries(decisions)) {
+      if (dependent.dependencies.includes(capabilityId)) disable(dependentId)
     }
-    for (const dependency of decision.dependencies) setEnabled(dependency, true)
+  }
+  const enable = (capabilityId: string) => {
+    const decision = decisionFor(capabilityId)
+    if (!decision) return
+    decision.enabled = true
+    for (const dependency of decision.dependencies) enable(dependency)
     if (decision.delivery === 'unsupported') decision.completion = 'blocked'
   }
+  const setEnabled = (capabilityId: string, enabled: boolean) => {
+    if (enabled) enable(capabilityId)
+    else disable(capabilityId)
+  }
   if (patch.enabled !== undefined) setEnabled(id, patch.enabled)
-  if (patch.completion !== undefined) decisions[id].completion = patch.completion
+  if (patch.completion !== undefined && updatedTarget) {
+    updatedTarget.completion = patch.completion
+  }
   return {
     ...project,
     workbook: {
@@ -184,27 +195,25 @@ export function replaceDecision(
 }
 
 export function deliveryMessage(value: CapabilityDelivery): string {
-  return value === 'automated'
-    ? 'Generated in the local bundle'
-    : value === 'guided_manual'
-      ? 'Requires a documented manual administrator action'
-      : value === 'verify_only'
-        ? 'Requires evidence from the existing platform'
-        : 'Not delivered by this workflow'
+  const messages = new Map<CapabilityDelivery, string>([
+    ['automated', 'Generated in the local bundle'],
+    ['guided_manual', 'Requires a documented manual administrator action'],
+    ['verify_only', 'Requires evidence from the existing platform'],
+    ['unsupported', 'Not delivered by this workflow'],
+  ])
+  return messages.get(value) ?? 'Not delivered by this workflow'
 }
 
 export function graphSummary(result?: BlueprintCompileResult): Array<[string, string]> {
   if (!result) return [['Configuration graph', 'Awaiting a local V2 compile']]
-  const byDelivery = result.graph.nodes.reduce<Record<string, number>>((counts, node) => ({
-    ...counts,
-    [node.delivery]: (counts[node.delivery] ?? 0) + 1,
-  }), {})
+  const count = (delivery: CapabilityDelivery) => result.graph.nodes.filter(
+    (node) => node.delivery === delivery,
+  ).length
   return [
     ['Configuration graph', `${result.graph.nodes.length} nodes in the compiled snapshot`],
     ['Graph identity', result.graph.graph_hash],
-    ['Automated nodes', String(byDelivery.automated ?? 0)],
-    ['Manual nodes', String(byDelivery.guided_manual ?? 0)],
-    ['Unsupported nodes', String(byDelivery.unsupported ?? 0)],
+    ['Automated nodes', String(count('automated'))],
+    ['Manual nodes', String(count('guided_manual'))],
+    ['Unsupported nodes', String(count('unsupported'))],
   ]
 }
-

@@ -36,10 +36,10 @@ export function Review() {
           `${project.profile.profile_key}.blueprint-v2.json`,
           blueprintResult?.project,
         ],
-        [result.artifact_filenames[0], result.project],
-        [result.artifact_filenames[1], result.profile],
-        [result.artifact_filenames[2], result.manifest],
-        [result.artifact_filenames[3], result.plan],
+        [result.artifact_filenames.at(0) ?? '', result.project],
+        [result.artifact_filenames.at(1) ?? '', result.profile],
+        [result.artifact_filenames.at(2) ?? '', result.manifest],
+        [result.artifact_filenames.at(3) ?? '', result.plan],
         [
           `${project.profile.profile_key}.configuration-graph.json`,
           blueprintResult?.graph,
@@ -98,7 +98,7 @@ export function Review() {
             type="button"
             disabled={!ready}
             onClick={() => {
-              const artifact = artifacts[index]
+              const artifact = artifacts.at(index)
               if (artifact) download(artifact[0], artifact[1])
             }}
             key={label}

@@ -14,46 +14,54 @@ const feature = {
   locked_assurances: ['offline_only'],
 }
 
+function compileResponseFor(project: ReturnType<typeof exampleProject>) {
+  return {
+    artifact_filenames: [
+      'university.project.json',
+      'university.profile.json',
+      'university.desired-state.json',
+      'university.plan.json',
+    ],
+    hashes: { plan: 'a', manifest: 'b', profile: 'c', project: 'd' },
+    issues: [],
+    summary: { counts: {}, display_name: project.name, manifest_key: '', profile_hash: '', profile_key: 'university', source_hash: '' },
+    project,
+    profile: project.profile,
+    manifest: project.manifest,
+    plan: { counts: {}, operations: [], plan_hash: 'a', safety: {} },
+  }
+}
+
+function blueprintFor(project: ReturnType<typeof exampleProject>): StudioProjectV2 {
+  return {
+    project_schema_version: '2.0',
+    id: project.id,
+    name: project.name,
+    target_schema_version: project.target_schema_version,
+    workbook: {
+      organization: { name: project.name },
+      services: [],
+      policies: {},
+      capability_decisions: {},
+      uat: {},
+    },
+    extensions: {},
+    bundle: {
+      profile: project.profile,
+      manifest: project.manifest,
+      resource_ownership: project.resource_ownership,
+      feature_state: project.feature_state,
+    },
+  }
+}
+
 describe('Studio API contract', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it('uses the local catalog and wraps the canonical project', async () => {
     const project = exampleProject()
-    const compileResponse = {
-      artifact_filenames: [
-        'university.project.json',
-        'university.profile.json',
-        'university.desired-state.json',
-        'university.plan.json',
-      ],
-      hashes: { plan: 'a', manifest: 'b', profile: 'c', project: 'd' },
-      issues: [],
-      summary: { counts: {}, display_name: project.name, manifest_key: '', profile_hash: '', profile_key: 'university', source_hash: '' },
-      project,
-      profile: project.profile,
-      manifest: project.manifest,
-      plan: { counts: {}, operations: [], plan_hash: 'a', safety: {} },
-    }
-    const blueprint: StudioProjectV2 = {
-      project_schema_version: '2.0',
-      id: project.id,
-      name: project.name,
-      target_schema_version: project.target_schema_version,
-      workbook: {
-        organization: { name: project.name },
-        services: [],
-        policies: {},
-        capability_decisions: {},
-        uat: {},
-      },
-      extensions: {},
-      bundle: {
-        profile: project.profile,
-        manifest: project.manifest,
-        resource_ownership: project.resource_ownership,
-        feature_state: project.feature_state,
-      },
-    }
+    const compileResponse = compileResponseFor(project)
+    const blueprint = blueprintFor(project)
     const blueprintResponse = {
       project: blueprint,
       bundle: blueprint.bundle,

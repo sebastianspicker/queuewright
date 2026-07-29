@@ -8,6 +8,7 @@ import {
   setPermission,
   toggleFeature,
 } from './project-model'
+import type { FeatureId, FeatureState } from './types'
 
 describe('project model', () => {
   it('loads the neutral university template with every owned feature enabled', () => {
@@ -25,7 +26,11 @@ describe('project model', () => {
     expect(enabled).toEqual(new Set(bundledCatalog.map((feature) => feature.id)))
     for (const owner of Object.values(project.resource_ownership)) {
       if (owner === 'core' || owner === 'custom') continue
-      expect(project.feature_state[owner].enabled).toBe(true)
+      const states = new Map<FeatureId, FeatureState>(
+        Object.entries(project.feature_state) as Array<[FeatureId, FeatureState]>,
+      )
+      const state = states.get(owner)
+      expect(state?.enabled).toBe(true)
     }
   })
 
