@@ -202,17 +202,14 @@ export function studioReducer(state: State, action: Action): State {
   }
 }
 
-type SyncCallback<Arguments extends unknown[] = []> = (..._args: Arguments) => void
-type AsyncCallback<Arguments extends unknown[]> = (..._args: Arguments) => Promise<void>
-
 interface StudioContextValue extends State {
   dispatch: Dispatch<Action>
-  updateProject: SyncCallback<[StudioProject, string?]>
-  updateBlueprint: SyncCallback<[StudioProjectV2]>
-  createNew: AsyncCallback<['blank' | 'example']>
-  openProject: AsyncCallback<[string]>
-  importFiles: AsyncCallback<[FileList | File[]]>
-  validateNow: SyncCallback
+  updateProject(project: StudioProject, selectedGroup?: string): void
+  updateBlueprint(project: StudioProjectV2): void
+  createNew(kind: 'blank' | 'example'): Promise<void>
+  openProject(id: string): Promise<void>
+  importFiles(files: FileList | File[]): Promise<void>
+  validateNow(): void
 }
 
 const StudioContext = createContext<StudioContextValue | undefined>(undefined)
@@ -454,7 +451,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
 
   const importFiles = useCallback(async (input: FileList | File[]) => {
     dispatch({ type: 'import:error', message: undefined })
-    const message = await importFilesIntoStudio(input, (project, blueprint) => {
+    const message = await importFilesIntoStudio(input, ([project, blueprint]) => {
       dispatch({ type: 'project:replace', project, blueprint })
     })
     if (message) dispatch({ type: 'import:error', message })

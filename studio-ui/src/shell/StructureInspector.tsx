@@ -1,5 +1,5 @@
 import { Copy, Network, Users, X } from 'lucide-react'
-import type { ComponentType } from 'react'
+import type { ComponentType, Dispatch } from 'react'
 import {
   customerEntryPoints,
   displayGroupName,
@@ -14,13 +14,11 @@ import {
 import { useStudio } from '../studio-state'
 import type { GroupResource, StudioProject } from '../types'
 
-type ChangeHandler<Arguments extends unknown[]> = (..._args: Arguments) => void
-
 type SwitchControl = ComponentType<{
   checked: boolean
   disabled?: boolean
   label: string
-  onChange: ChangeHandler<[boolean]>
+  onChange: Dispatch<boolean>
 }>
 
 function GroupDefinition({
@@ -36,9 +34,9 @@ function GroupDefinition({
   group: GroupResource
   groupName: string
   isRoot: boolean
-  onNameChange: ChangeHandler<[string]>
-  onParentChange: ChangeHandler<[string]>
-  onTypeChange: ChangeHandler<['container' | 'leaf']>
+  onNameChange: Dispatch<string>
+  onParentChange: Dispatch<string>
+  onTypeChange: Dispatch<'container' | 'leaf'>
   parents: GroupResource[]
   project: StudioProject
 }) {
@@ -80,8 +78,8 @@ function LeafDetails({
 }: {
   entryPoints: string[]
   group: GroupResource
-  onEntryPointChange: ChangeHandler<[boolean]>
-  onRestrictedChange: ChangeHandler<[boolean]>
+  onEntryPointChange: Dispatch<boolean>
+  onRestrictedChange: Dispatch<boolean>
   Switch: SwitchControl
 }) {
   return (
@@ -101,7 +99,8 @@ function LeafDetails({
 }
 
 export function StructureInspector({ Switch }: { Switch: SwitchControl }) {
-  const { project, selectedGroup, dispatch, updateProject, validateNow } = useStudio()
+  const studio = useStudio()
+  const { project, selectedGroup, dispatch } = studio
   const group = project.manifest.groups.find((item) => item.key === selectedGroup)
   if (!group) return <p className="inspector-empty">Select a unit or service to edit it.</p>
   const isRoot = group.parent === undefined
@@ -110,7 +109,7 @@ export function StructureInspector({ Switch }: { Switch: SwitchControl }) {
   const groupName = displayGroupName(project, group)
   const typeLabel = group.kind === 'leaf' ? 'Ticket-bearing service' : 'Organizational unit'
   const close = () => { dispatch({ type: 'group:select', id: undefined }) }
-  const remove = () => { updateProject(removeGroup(project, group.key)); close() }
+  const remove = () => { studio.updateProject(removeGroup(project, group.key)); close() }
   return (
     <>
       <div className="inspector-title"><div><h2>{groupName}</h2><p className="inspector-subtitle">{typeLabel} · under {group.parent ? displayGroupName(project, parent) : 'Root'}</p></div><button className="icon-button" type="button" aria-label="Close inspector" onClick={close}><X size={22} /></button></div>
@@ -118,14 +117,14 @@ export function StructureInspector({ Switch }: { Switch: SwitchControl }) {
         group={group}
         groupName={groupName}
         isRoot={isRoot}
-        onNameChange={(name) => { updateProject(renameGroup(project, group.key, name), group.key) }}
-        onParentChange={(parentKey) => { updateProject(moveGroup(project, group.key, parentKey), group.key) }}
-        onTypeChange={(kind) => { updateProject(setGroupKind(project, group.key, kind), group.key) }}
+        onNameChange={(name) => { studio.updateProject(renameGroup(project, group.key, name), group.key) }}
+        onParentChange={(parentKey) => { studio.updateProject(moveGroup(project, group.key, parentKey), group.key) }}
+        onTypeChange={(kind) => { studio.updateProject(setGroupKind(project, group.key, kind), group.key) }}
         parents={parents}
         project={project}
       />
-      {group.kind === 'leaf' ? <LeafDetails entryPoints={customerEntryPoints(project)} group={group} onEntryPointChange={(checked) => { updateProject(setCustomerEntryPoint(project, group.key, checked), group.key) }} onRestrictedChange={(checked) => { updateProject(setRestricted(project, group.key, checked), group.key) }} Switch={Switch} /> : null}
-      <button className="button primary inspector-save" type="button" onClick={validateNow}>Validate changes</button>
+      {group.kind === 'leaf' ? <LeafDetails entryPoints={customerEntryPoints(project)} group={group} onEntryPointChange={(checked) => { studio.updateProject(setCustomerEntryPoint(project, group.key, checked), group.key) }} onRestrictedChange={(checked) => { studio.updateProject(setRestricted(project, group.key, checked), group.key) }} Switch={Switch} /> : null}
+      <button className="button primary inspector-save" type="button" onClick={() => { studio.validateNow() }}>Validate changes</button>
       {!isRoot ? <button className="text-button danger" type="button" onClick={remove}>Remove from structure</button> : null}
     </>
   )

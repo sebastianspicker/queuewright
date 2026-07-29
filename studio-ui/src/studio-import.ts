@@ -1,4 +1,5 @@
 import { api } from './api'
+import type { Dispatch } from 'react'
 import type {
   ManifestDocument,
   ProfileDocument,
@@ -6,7 +7,7 @@ import type {
   StudioProjectV2,
 } from './types'
 
-type ReplaceStudio = (..._args: [StudioProject, StudioProjectV2]) => void
+type ReplaceStudio = Dispatch<[StudioProject, StudioProjectV2]>
 
 export function readFile(file: Blob): Promise<string> {
   if (typeof file.text === 'function') return file.text()
@@ -64,20 +65,20 @@ export async function importValues(
   if (blueprint) {
     const compiled = await api.compileBlueprint(blueprint)
     const result = await api.compile(projectFromBlueprint(compiled.project))
-    onReplace(result.project, compiled.project)
+    onReplace([result.project, compiled.project])
     return
   }
   const project = values.map(projectValue).find(Boolean)
   if (project) {
     const result = await api.compile(project)
-    onReplace(result.project, await api.migrateProject(result.project))
+    onReplace([result.project, await api.migrateProject(result.project)])
     return
   }
   const bundle = findBundle(values)
   if (!bundle) throw new Error('A profile and desired-state manifest are both required.')
   const imported = await api.importBundle(bundle.profile, bundle.manifest)
   const result = await api.compile(imported)
-  onReplace(result.project, await api.migrateProject(result.project))
+  onReplace([result.project, await api.migrateProject(result.project)])
 }
 
 export async function importFilesIntoStudio(
