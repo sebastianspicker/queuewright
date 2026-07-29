@@ -1,16 +1,17 @@
 import { useStudio } from '../studio-state'
 
+function openDecisionCount(blueprint: ReturnType<typeof useStudio>['blueprint']): number {
+  return Object.values(blueprint?.workbook.capability_decisions ?? {}).filter(
+    (decision) => decision.enabled
+      && (decision.completion === 'decision_required' || decision.completion === 'blocked'),
+  ).length
+}
+
 export function ProvenanceStrip() {
   const { revision, blueprintResult, blueprint } = useStudio()
   const graphHash = blueprintResult?.graph.graph_hash
   const hashLabel = graphHash?.slice(0, 12) ?? 'awaiting'
-  const openDecisions = Object.values(
-    blueprint?.workbook.capability_decisions ?? {},
-  ).filter((decision) =>
-    decision.enabled
-    && (decision.completion === 'decision_required'
-      || decision.completion === 'blocked'),
-  ).length
+  const openDecisions = openDecisionCount(blueprint)
 
   return (
     <div className="provenance" aria-label="Design provenance">

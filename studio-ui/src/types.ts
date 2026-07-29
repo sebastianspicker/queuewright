@@ -72,7 +72,7 @@ export interface OrganizationResource {
 export interface RoleResource {
   key: string
   name: string
-  acl: Record<string, string[]>
+  acl: Partial<Record<string, string[]>>
 }
 
 export interface ObjectFieldResource {

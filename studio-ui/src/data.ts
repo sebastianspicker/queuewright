@@ -12,6 +12,7 @@ import {
   type FeatureState,
   type ManifestDocument,
   type ProfileDocument,
+  type JsonValue,
   type ResourceOwner,
   type StudioProject,
 } from './types'
@@ -43,7 +44,7 @@ interface CatalogFeatureJson {
   locked_assurances: string[]
   locked: boolean
   default_enabled: boolean
-  settings: Record<string, import('./types').JsonValue>
+  settings: Record<string, JsonValue>
 }
 
 const catalogFeatures = featureCatalogJson.features as CatalogFeatureJson[]
@@ -120,10 +121,14 @@ export function resourceIds(
   add('triggers', manifest.triggers)
   add('jobs', manifest.jobs)
   add('report_profiles', manifest.report_profiles)
-  for (const collection of ['ticket_fields', 'user_fields', 'organization_fields', 'group_fields'] as const) {
-    for (const field of manifest.object_manager[collection]) {
-      ids.push(`object_manager_fields:${field.name}`)
-    }
+  const objectManagerFields = [
+    ...manifest.object_manager.ticket_fields,
+    ...manifest.object_manager.user_fields,
+    ...manifest.object_manager.organization_fields,
+    ...manifest.object_manager.group_fields,
+  ]
+  for (const field of objectManagerFields) {
+    ids.push(`object_manager_fields:${field.name}`)
   }
   add('core_workflows', manifest.object_manager.core_workflows)
   add('uat_scenarios', profile.uat.scenarios)
@@ -131,23 +136,27 @@ export function resourceIds(
 }
 
 export function ownerForResource(id: string): ResourceOwner {
-  if (id.startsWith('groups:') || id.startsWith('organizations:') || id.startsWith('roles:') || id.startsWith('core_workflows:')) return 'core'
-  if (id.startsWith('agents:') || id.startsWith('customers:')) return 'dummy_users_uat'
-  if (id.startsWith('uat_scenarios:') || id.endsWith('/uat')) return 'access_matrix'
-  // Unambiguous collection prefixes before content-based matches.
-  // jobs: must beat handoff substring (e.g. jobs:review_stale_handoff).
-  if (id.startsWith('overviews:')) return 'overviews'
-  if (id.startsWith('macros:')) return 'macros'
-  if (id.startsWith('checklist_templates:')) return 'checklists'
-  if (id.startsWith('triggers:')) return 'triggers'
-  if (id.startsWith('jobs:')) return 'scheduled_reviews'
-  if (id.startsWith('report_profiles:')) return 'report_profiles'
-  // Content-based owners for fields/tags before the OM catch-all.
-  if (id.includes('handoff')) return 'cross_department_handoff'
-  if (id.includes('sensitive') || id.includes('information_security')) return 'sensitive_area_handling'
-  if (id.includes('user_population')) return 'user_classification'
-  if (id.includes('organization_class')) return 'organization_classification'
-  if (id.includes('group_class')) return 'group_classification'
+  const prefixOwners: Array<[string, ResourceOwner]> = [
+    ['groups:', 'core'], ['organizations:', 'core'], ['roles:', 'core'],
+    ['core_workflows:', 'core'], ['agents:', 'dummy_users_uat'],
+    ['customers:', 'dummy_users_uat'], ['uat_scenarios:', 'access_matrix'],
+    ['overviews:', 'overviews'], ['macros:', 'macros'],
+    ['checklist_templates:', 'checklists'], ['triggers:', 'triggers'],
+    ['jobs:', 'scheduled_reviews'], ['report_profiles:', 'report_profiles'],
+  ]
+  const prefixOwner = prefixOwners.find(([prefix]) => id.startsWith(prefix))?.[1]
+  if (prefixOwner) return prefixOwner
+  if (id.endsWith('/uat')) return 'access_matrix'
+  const contentOwners: Array<[string, ResourceOwner]> = [
+    ['handoff', 'cross_department_handoff'],
+    ['sensitive', 'sensitive_area_handling'],
+    ['information_security', 'sensitive_area_handling'],
+    ['user_population', 'user_classification'],
+    ['organization_class', 'organization_classification'],
+    ['group_class', 'group_classification'],
+  ]
+  const contentOwner = contentOwners.find(([term]) => id.includes(term))?.[1]
+  if (contentOwner) return contentOwner
   if (id.startsWith('object_manager_fields:')) return 'ticket_fields'
   return 'custom'
 }
@@ -157,10 +166,11 @@ export function syncOwnership(
   manifest: ManifestDocument,
   previous: Record<string, ResourceOwner> = {},
 ): Record<string, ResourceOwner> {
+  const ownership = new Map(Object.entries(previous))
   return Object.fromEntries(
     resourceIds(profile, manifest).map((id) => [
       id,
-      previous[id] ?? ownerForResource(id),
+      ownership.get(id) ?? ownerForResource(id),
     ]),
   )
 }
@@ -211,14 +221,18 @@ export function blankProject(): StudioProject {
     agent_create_shared: 'qWright Draft · CW · Agent create shared',
   }
   profile.uat.title_prefix = '[QWRIGHT-UAT]'
-  profile.uat.scenarios[0].expected_tags = ['queuewright_draft/uat']
+  const firstScenario = profile.uat.scenarios.at(0)
+  if (firstScenario) firstScenario.expected_tags = ['queuewright_draft/uat']
   manifest.manifest_key = 'queuewright-draft-v1'
   manifest.managed_prefix = 'qWright Draft ·'
   manifest.technical_namespace = 'queuewright_draft_'
-  for (const collection of ['groups', 'organizations', 'roles'] as const) {
-    for (const item of manifest[collection]) {
-      item.name = item.name?.replace('Example Prototype ·', 'qWright Draft ·') ?? ''
-    }
+  const namedResources = [
+    ...manifest.groups,
+    ...manifest.organizations,
+    ...manifest.roles,
+  ]
+  for (const item of namedResources) {
+    item.name = item.name?.replace('Example Prototype ·', 'qWright Draft ·') ?? ''
   }
   manifest.users.email_template = 'queuewright_draft.{kind}.{key}@example.invalid'
   manifest.overviews = []
@@ -228,7 +242,8 @@ export function blankProject(): StudioProject {
   manifest.triggers = []
   manifest.jobs = []
   manifest.report_profiles = []
-  manifest.object_manager.ticket_fields[0].name = 'queuewright_draft_service_code'
+  const firstTicketField = manifest.object_manager.ticket_fields.at(0)
+  if (firstTicketField) firstTicketField.name = 'queuewright_draft_service_code'
   manifest.uat.title_prefix = '[QWRIGHT-UAT]'
   return projectFrom(`studio-draft-${Date.now().toString(36)}`, profile, manifest)
 }

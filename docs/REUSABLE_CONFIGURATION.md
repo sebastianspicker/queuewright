@@ -104,8 +104,8 @@ confirm that they do not identify real people or organizations.
    labels, schedules, and test scenarios.
 4. Keep all identity templates in dummy mode, review free-form text for real
    identities, and keep all external effects disabled.
-5. Run `validate`, `plan`, the Python test suite, and
-   `scripts/verify_repo.py`.
+5. Run `validate`, `plan`, the Python test suite,
+   `scripts/verify_repo.py`, and `scripts/verify_git_ignores.sh`.
 6. Review the symbolic plan as a local artifact. It is not an apply command.
 
 Use `profiles/example/` when a minimal two-group contract is preferable to the

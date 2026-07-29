@@ -21,6 +21,7 @@ jobs:
       - run: python3 -m queuewright self-test
       - run: python3 -m unittest discover -s tests -v
       - run: python3 scripts/verify_repo.py
+      - run: bash scripts/verify_git_ignores.sh
 
   studio:
     runs-on: ubuntu-latest

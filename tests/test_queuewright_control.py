@@ -635,7 +635,7 @@ class ControlTests(unittest.TestCase):
 
     def test_ledger_rejects_world_writable_parent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            os.chmod(directory, 0o777)
+            os.chmod(directory, stat.S_IRWXU | stat.S_IWOTH)
             with self.assertRaisesRegex(ControlError, "owner-controlled"):
                 Ledger(
                     os.path.join(directory, "unsafe.sqlite3"),

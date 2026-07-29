@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test('edits plan-backed settings and unlocks export after local compilation', async ({ page }) => {
   await page.goto('/')
   await expect(page).toHaveTitle('qWright')
-  await expect(page.getByLabel('qWright')).toHaveText('qWright')
+  await expect(page.getByLabel('qWright', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Organization' }).click()
   await page.getByLabel('Service owner role').fill('Head of Service Management')
 
@@ -12,7 +12,7 @@ test('edits plan-backed settings and unlocks export after local compilation', as
   await page.getByRole('switch', { name: 'Customer entry point' }).click()
 
   await page.getByRole('button', { name: 'Policies' }).click()
-  await page.getByText('Cross-department handoff', { exact: true }).click()
+  await page.getByRole('group', { name: 'Cross-department handoff capability' }).click()
   await page.getByRole('checkbox', { name: 'sanitized child' }).uncheck()
 
   await page.getByRole('button', { name: 'Governance' }).click()
@@ -26,5 +26,5 @@ test('edits plan-backed settings and unlocks export after local compilation', as
   await page.getByRole('button', { name: 'Review' }).click()
   await expect(page.getByText('Blueprint validated for local export')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Blueprint' })).toBeEnabled()
-  await expect(page.getByRole('button', { name: 'Project' })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Project', exact: true })).toBeEnabled()
 })

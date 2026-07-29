@@ -22,29 +22,29 @@ function refreshPresentation(project: StudioProject): void {
     ...objectManager.organization_fields,
     ...objectManager.group_fields,
   ]
-  const previousFields = project.profile.presentation.field_labels
+  const previousFields = new Map(Object.entries(project.profile.presentation.field_labels))
   project.profile.presentation.field_labels = Object.fromEntries(
     fields.map((field) => [
       field.name,
-      previousFields[field.name]
+      previousFields.get(field.name)
         ?? humanize(field.name.replace(project.manifest.technical_namespace, '')),
     ]),
   )
 
-  const previousOptions = project.profile.presentation.option_labels
+  const previousOptions = new Map(Object.entries(project.profile.presentation.option_labels))
   const options = new Set(fields.flatMap((field) => field.options))
   project.profile.presentation.option_labels = Object.fromEntries(
     [...options].sort().map((option) => [
       option,
-      previousOptions[option] ?? humanize(option),
+      previousOptions.get(option) ?? humanize(option),
     ]),
   )
 
-  const previousWorkflows = project.profile.presentation.core_workflow_names
+  const previousWorkflows = new Map(Object.entries(project.profile.presentation.core_workflow_names))
   project.profile.presentation.core_workflow_names = Object.fromEntries(
     objectManager.core_workflows.map((workflow) => [
       workflow.key,
-      previousWorkflows[workflow.key]
+      previousWorkflows.get(workflow.key)
         ?? `${project.manifest.managed_prefix} CW · ${humanize(workflow.key)}`,
     ]),
   )
@@ -54,10 +54,11 @@ function refreshPresentation(project: StudioProject): void {
       field.name.replace(project.manifest.technical_namespace, ''),
     ),
   )
+  const defaults = new Map(Object.entries(project.profile.uat.defaults))
   project.profile.uat.defaults = Object.fromEntries(
     [...ticketLogicalNames].map((name) => [
       name,
-      project.profile.uat.defaults[name] ?? null,
+      defaults.get(name) ?? null,
     ]),
   )
 }

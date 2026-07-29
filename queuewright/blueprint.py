@@ -64,73 +64,108 @@ def _key_parts(key: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]+", key.lower()))
 
 
-def _safe(value: Any, path: str) -> None:
-    if value is None or type(value) in {bool, int}:
-        return
-    if type(value) is float:
+def _safe_scalar(value: Any, path: str) -> bool:
+    if value is None or value.__class__ in {bool, int}:
+        return True
+    if value.__class__ is float:
         if value == value and value not in (float("inf"), -float("inf")):
-            return
+            return True
         _fail(f"{path} must contain finite JSON numbers")
     if isinstance(value, str):
         if "://" in value:
             _fail(f"{path} must not contain URLs")
+        return True
+    return False
+
+
+def _safe_mapping(value: dict[Any, Any], path: str) -> None:
+    for key, child in value.items():
+        if not isinstance(key, str):
+            _fail(f"{path} object keys must be strings")
+        parts = _key_parts(key)
+        if parts & SENSITIVE_WORDS or {"api", "key"} <= parts or {"private", "key"} <= parts:
+            _fail(f"{path}.{key} has a forbidden sensitive key name")
+        _safe(child, f"{path}.{key}")
+
+
+def _safe(value: Any, path: str) -> None:
+    if _safe_scalar(value, path):
         return
     if isinstance(value, list):
         for index, child in enumerate(value):
             _safe(child, f"{path}[{index}]")
         return
     if isinstance(value, dict):
-        for key, child in value.items():
-            if not isinstance(key, str):
-                _fail(f"{path} object keys must be strings")
-            parts = _key_parts(key)
-            if parts & SENSITIVE_WORDS or {"api", "key"} <= parts or {"private", "key"} <= parts:
-                _fail(f"{path}.{key} has a forbidden sensitive key name")
-            _safe(child, f"{path}.{key}")
+        _safe_mapping(value, path)
         return
     _fail(f"{path} must contain only JSON values")
 
 
-def load_capabilities(path: Path = CATALOG_PATH) -> list[dict[str, Any]]:
-    """Load and validate the static, offline Cloud capability registry."""
+def _read_capability_catalog(path: Path) -> list[dict[str, Any]]:
     try:
         catalog = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
         _fail(f"cannot read capability registry: {error}")
     if not isinstance(catalog, dict) or set(catalog) != {"capabilities"} or not isinstance(catalog["capabilities"], list):
         _fail("capability registry must contain exactly a capabilities list")
+    return catalog["capabilities"]
+
+
+def _capability_id(capability: Any, index: int, ids: set[str]) -> str:
     expected = {"id", "domain", "delivery", "default_completion", "risk", "dependencies"}
-    capabilities = catalog["capabilities"]
+    if not isinstance(capability, dict) or set(capability) != expected:
+        _fail(f"capability registry entry {index} has an invalid shape")
+    capability_id = capability.get("id")
+    if not isinstance(capability_id, str) or not re.fullmatch(r"[a-z][a-z0-9-]*", capability_id) or capability_id in ids:
+        _fail(f"capability registry entry {index} has an invalid id")
+    return capability_id
+
+
+def _validate_capability_metadata(capability: dict[str, Any], capability_id: str) -> None:
+    if not isinstance(capability["domain"], str) or not capability["domain"]:
+        _fail(f"capability registry entry {capability_id} has an invalid domain")
+    if capability["delivery"] not in DELIVERIES or capability["default_completion"] not in COMPLETIONS or capability["risk"] not in RISKS:
+        _fail(f"capability registry entry {capability_id} has invalid metadata")
+
+def _validate_capability_dependencies(capability: dict[str, Any], capability_id: str) -> None:
+    if not isinstance(capability["dependencies"], list) or not all(isinstance(item, str) for item in capability["dependencies"]) or len(capability["dependencies"]) != len(set(capability["dependencies"])):
+        _fail(f"capability registry entry {capability_id} has invalid dependencies")
+    if capability_id in capability["dependencies"]:
+        _fail(f"capability registry entry {capability_id} depends on itself")
+    if capability["delivery"] == "unsupported" and capability["default_completion"] != "blocked":
+        _fail(f"unsupported capability {capability_id} must default to blocked")
+
+
+def _validate_capability(capability: Any, index: int, ids: set[str]) -> None:
+    capability_id = _capability_id(capability, index, ids)
+    _validate_capability_metadata(capability, capability_id)
+    _validate_capability_dependencies(capability, capability_id)
+    ids.add(capability_id)
+
+
+def load_capabilities(path: Path = CATALOG_PATH) -> list[dict[str, Any]]:
+    """Load and validate the static, offline Cloud capability registry."""
+    capabilities = _read_capability_catalog(path)
     ids: set[str] = set()
     for index, capability in enumerate(capabilities):
-        if not isinstance(capability, dict) or set(capability) != expected:
-            _fail(f"capability registry entry {index} has an invalid shape")
-        capability_id = capability.get("id")
-        if not isinstance(capability_id, str) or not re.fullmatch(r"[a-z][a-z0-9-]*", capability_id) or capability_id in ids:
-            _fail(f"capability registry entry {index} has an invalid id")
-        if not isinstance(capability["domain"], str) or not capability["domain"]:
-            _fail(f"capability registry entry {capability_id} has an invalid domain")
-        if capability["delivery"] not in DELIVERIES or capability["default_completion"] not in COMPLETIONS or capability["risk"] not in RISKS:
-            _fail(f"capability registry entry {capability_id} has invalid metadata")
-        if (
-            not isinstance(capability["dependencies"], list)
-            or not all(isinstance(item, str) for item in capability["dependencies"])
-            or len(capability["dependencies"])
-            != len(set(capability["dependencies"]))
-        ):
-            _fail(f"capability registry entry {capability_id} has invalid dependencies")
-        if capability_id in capability["dependencies"]:
-            _fail(f"capability registry entry {capability_id} depends on itself")
-        if (
-            capability["delivery"] == "unsupported"
-            and capability["default_completion"] != "blocked"
-        ):
-            _fail(f"unsupported capability {capability_id} must default to blocked")
-        ids.add(capability_id)
+        _validate_capability(capability, index, ids)
+    _validate_capability_dependencies_graph(capabilities, ids)
+    return sorted(copy.deepcopy(capabilities), key=lambda item: item["id"])
+
+
+def _validate_capability_dependencies_graph(capabilities: list[dict[str, Any]], ids: set[str]) -> None:
+    _validate_known_capability_dependencies(capabilities, ids)
+    _validate_capability_dependency_cycles(capabilities)
+
+
+def _validate_known_capability_dependencies(capabilities: list[dict[str, Any]], ids: set[str]) -> None:
     for capability in capabilities:
         unknown = set(capability["dependencies"]) - ids
         if unknown:
             _fail(f"capability registry entry {capability['id']} has unknown dependency: {sorted(unknown)[0]}")
+
+
+def _validate_capability_dependency_cycles(capabilities: list[dict[str, Any]]) -> None:
     remaining = {
         capability["id"]: set(capability["dependencies"])
         for capability in capabilities
@@ -150,7 +185,6 @@ def load_capabilities(path: Path = CATALOG_PATH) -> list[dict[str, Any]]:
         for capability_id in ready:
             complete.add(capability_id)
             del remaining[capability_id]
-    return sorted(copy.deepcopy(capabilities), key=lambda item: item["id"])
 
 
 def _load_feature_catalog(path: Path = FEATURE_CATALOG_PATH) -> list[dict[str, Any]]:
@@ -171,12 +205,24 @@ def _load_feature_catalog(path: Path = FEATURE_CATALOG_PATH) -> list[dict[str, A
 def _validate_bundle(bundle: Any) -> dict[str, Any]:
     if not isinstance(bundle, dict) or set(bundle) != BUNDLE_FIELDS:
         _fail("bundle must contain exactly profile, manifest, resource_ownership, and feature_state")
+    _validate_bundle_profile(bundle)
+    ownership, feature_state = _validate_bundle_studio_state(bundle)
+    bundle = copy.deepcopy(bundle)
+    bundle["resource_ownership"] = ownership
+    bundle["feature_state"] = feature_state
+    return copy.deepcopy(bundle)
+
+
+def _validate_bundle_profile(bundle: dict[str, Any]) -> None:
     if not isinstance(bundle["profile"], dict) or not isinstance(bundle["manifest"], dict):
         _fail("bundle profile and manifest must be objects")
     try:
         validate_loaded_profile({"profile": bundle["profile"], "manifest": bundle["manifest"]})
     except (KeyError, TypeError, ConfigurationError) as error:
         _fail(str(error))
+
+
+def _validate_bundle_studio_state(bundle: dict[str, Any]) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
     if not isinstance(bundle["resource_ownership"], dict) or not isinstance(bundle["feature_state"], dict):
         _fail("bundle resource_ownership and feature_state must be objects")
     try:
@@ -189,10 +235,7 @@ def _validate_bundle(bundle: Any) -> dict[str, Any]:
         )
     except StudioContractError as error:
         _fail(f"{error.path}: {error.message}")
-    bundle = copy.deepcopy(bundle)
-    bundle["resource_ownership"] = ownership
-    bundle["feature_state"] = feature_state
-    return copy.deepcopy(bundle)
+    return ownership, feature_state
 
 
 def _validate_header(project: dict[str, Any], version: str) -> None:
@@ -205,26 +248,32 @@ def _validate_header(project: dict[str, Any], version: str) -> None:
         _fail("id must be a lowercase safe project key")
 
 
+def _workflow_entry_groups(workflow: dict[str, Any], group_keys: set[str]) -> set[str]:
+    match = workflow.get("match")
+    if not isinstance(match, str):
+        return set()
+    parsed = re.fullmatch(r"^authenticated customer and group in \[([a-z0-9_, -]+)\]$", match)
+    if parsed is None:
+        return set()
+    return {item.strip() for item in parsed.group(1).split(",") if item.strip() in group_keys}
+
+
+def _customer_entry_points(manifest: dict[str, Any]) -> set[str]:
+    group_keys = {group["key"] for group in manifest["groups"]}
+    entry_points: set[str] = set()
+    workflows = (
+        workflow for workflow in manifest["object_manager"]["core_workflows"]
+        if workflow.get("context") == "customer_create"
+    )
+    for workflow in workflows:
+        entry_points.update(_workflow_entry_groups(workflow, group_keys))
+    return entry_points
+
+
 def _derived_services(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     manifest = bundle["manifest"]
     profile = bundle["profile"]
-    group_keys = {group["key"] for group in manifest["groups"]}
-    entry_points: set[str] = set()
-    customer_match = re.compile(
-        r"^authenticated customer and group in \[([a-z0-9_, -]+)\]$"
-    )
-    for workflow in manifest["object_manager"]["core_workflows"]:
-        if workflow.get("context") != "customer_create":
-            continue
-        match = workflow.get("match")
-        parsed = customer_match.fullmatch(match) if isinstance(match, str) else None
-        if parsed:
-            entry_points.update(
-                group_key
-                for group_key in (item.strip() for item in parsed.group(1).split(","))
-                if group_key in group_keys
-            )
-
+    entry_points = _customer_entry_points(manifest)
     roles_by_key = {role["key"]: role for role in manifest["roles"]}
 
     def role_access(group_key: str) -> list[dict[str, str]]:
@@ -308,26 +357,76 @@ def _capability_enabled(capability_id: str, bundle: dict[str, Any]) -> bool:
     return mapping.get(capability_id, False)
 
 
+def _decision_state(capability: dict[str, Any], current: Any, bundle: dict[str, Any]) -> tuple[bool, str]:
+    current = current if isinstance(current, dict) else {}
+    enabled = current.get("enabled", _capability_enabled(capability["id"], bundle))
+    completion = current.get("completion")
+    if capability["delivery"] == "unsupported":
+        enabled = False
+        completion = "blocked"
+    elif not enabled:
+        completion = "decision_required"
+    elif completion not in COMPLETIONS:
+        completion = (
+            "ready"
+            if capability["delivery"] == "automated" and enabled
+            else capability["default_completion"]
+        )
+    return enabled, completion
+
+
 def _decisions(bundle: dict[str, Any], previous: Any = None) -> dict[str, dict[str, Any]]:
     existing = previous if isinstance(previous, dict) else {}
     decisions: dict[str, dict[str, Any]] = {}
     for capability in load_capabilities():
-        current = existing.get(capability["id"], {})
-        enabled = current.get("enabled", _capability_enabled(capability["id"], bundle)) if isinstance(current, dict) else _capability_enabled(capability["id"], bundle)
-        completion = current.get("completion") if isinstance(current, dict) else None
-        if capability["delivery"] == "unsupported":
-            enabled = False
-            completion = "blocked"
-        elif not enabled:
-            completion = "decision_required"
-        elif completion not in COMPLETIONS:
-            completion = (
-                "ready"
-                if capability["delivery"] == "automated" and enabled
-                else capability["default_completion"]
-            )
+        enabled, completion = _decision_state(capability, existing.get(capability["id"]), bundle)
         decisions[capability["id"]] = {"completion": completion, "delivery": capability["delivery"], "risk": capability["risk"], "dependencies": capability["dependencies"], "enabled": enabled}
     return decisions
+
+
+def _validate_workbook_decisions(decisions: Any, bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    expected = {item["id"] for item in load_capabilities()}
+    if not isinstance(decisions, dict) or set(decisions) != expected:
+        _fail("workbook.capability_decisions must define every capability exactly")
+    normalized = _decisions(bundle, decisions)
+    _validate_decision_entries(decisions, normalized)
+    _validate_enabled_decision_dependencies(normalized)
+    return normalized
+
+
+def _validate_decision_entries(decisions: dict[str, dict[str, Any]], normalized: dict[str, dict[str, Any]]) -> None:
+    for capability_id, decision in decisions.items():
+        if not isinstance(decision, dict) or set(decision) != {"completion", "delivery", "risk", "dependencies", "enabled"}:
+            _fail(f"workbook.capability_decisions.{capability_id} has an invalid shape")
+        if decision["completion"] not in COMPLETIONS or decision["enabled"].__class__ is not bool:
+            _fail(f"workbook.capability_decisions.{capability_id} has invalid editable values")
+        if decision["completion"] in {"applied", "verified"}:
+            _fail(f"workbook.capability_decisions.{capability_id} cannot claim applied or verified in an offline project")
+        if decision != normalized[capability_id]:
+            _fail(f"workbook.capability_decisions.{capability_id} must use registry delivery, risk, and dependencies")
+
+
+def _validate_enabled_decision_dependencies(normalized: dict[str, dict[str, Any]]) -> None:
+    for capability_id, decision in normalized.items():
+        if not decision["enabled"]:
+            continue
+        missing = [dependency for dependency in decision["dependencies"] if not normalized[dependency]["enabled"]]
+        if missing:
+            _fail(f"workbook.capability_decisions.{capability_id} requires enabled dependency {missing[0]}")
+
+
+def _derived_workbook_sections(bundle: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
+    return _derived_services(bundle), _derived_policies(bundle), copy.deepcopy(bundle["profile"]["uat"])
+
+
+def _validate_derived_workbook_sections(workbook: dict[str, Any], sections: tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]) -> None:
+    services, policies, uat = sections
+    if workbook["services"] != services:
+        _fail("workbook.services is compiler-derived and must match bundle.manifest")
+    if workbook["policies"] != policies:
+        _fail("workbook.policies is compiler-derived and must match bundle.manifest")
+    if workbook["uat"] != uat:
+        _fail("workbook.uat is compiler-derived and must match bundle.profile")
 
 
 def _validate_workbook(workbook: Any, bundle: dict[str, Any]) -> dict[str, Any]:
@@ -336,50 +435,14 @@ def _validate_workbook(workbook: Any, bundle: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(workbook["organization"], dict):
         _fail("workbook.organization must be an object")
     _safe(workbook["organization"], "workbook.organization")
-    decisions = workbook["capability_decisions"]
-    expected = {item["id"] for item in load_capabilities()}
-    if not isinstance(decisions, dict) or set(decisions) != expected:
-        _fail("workbook.capability_decisions must define every capability exactly")
-    normalized = _decisions(bundle, decisions)
-    for capability_id, decision in decisions.items():
-        if not isinstance(decision, dict) or set(decision) != {"completion", "delivery", "risk", "dependencies", "enabled"}:
-            _fail(f"workbook.capability_decisions.{capability_id} has an invalid shape")
-        if decision["completion"] not in COMPLETIONS or type(decision["enabled"]) is not bool:
-            _fail(f"workbook.capability_decisions.{capability_id} has invalid editable values")
-        if decision["completion"] in {"applied", "verified"}:
-            _fail(
-                f"workbook.capability_decisions.{capability_id} cannot claim "
-                "applied or verified in an offline project"
-            )
-        if decision != normalized[capability_id]:
-            _fail(f"workbook.capability_decisions.{capability_id} must use registry delivery, risk, and dependencies")
-    for capability_id, decision in normalized.items():
-        if not decision["enabled"]:
-            continue
-        missing = [
-            dependency
-            for dependency in decision["dependencies"]
-            if not normalized[dependency]["enabled"]
-        ]
-        if missing:
-            _fail(
-                f"workbook.capability_decisions.{capability_id} requires enabled "
-                f"dependency {missing[0]}"
-            )
+    normalized = _validate_workbook_decisions(workbook["capability_decisions"], bundle)
     if not isinstance(workbook["services"], list) or not isinstance(workbook["policies"], dict) or not isinstance(workbook["uat"], dict):
         _fail("workbook services, policies, and uat have invalid shapes")
     _safe(workbook["services"], "workbook.services")
     _safe(workbook["policies"], "workbook.policies")
     _safe(workbook["uat"], "workbook.uat")
-    derived_services = _derived_services(bundle)
-    derived_policies = _derived_policies(bundle)
-    derived_uat = copy.deepcopy(bundle["profile"]["uat"])
-    if workbook["services"] != derived_services:
-        _fail("workbook.services is compiler-derived and must match bundle.manifest")
-    if workbook["policies"] != derived_policies:
-        _fail("workbook.policies is compiler-derived and must match bundle.manifest")
-    if workbook["uat"] != derived_uat:
-        _fail("workbook.uat is compiler-derived and must match bundle.profile")
+    derived_services, derived_policies, derived_uat = _derived_workbook_sections(bundle)
+    _validate_derived_workbook_sections(workbook, (derived_services, derived_policies, derived_uat))
     return {
         "organization": copy.deepcopy(workbook["organization"]),
         "services": derived_services,
@@ -415,18 +478,10 @@ def migrate_v1_project(project: Any) -> dict[str, Any]:
     return {"project_schema_version": PROJECT_SCHEMA_VERSION, "id": project["id"], "name": project["name"], "target_schema_version": project["target_schema_version"], "workbook": {"organization": {"name": project["name"]}, "services": _derived_services(bundle), "policies": _derived_policies(bundle), "capability_decisions": _decisions(enriched), "uat": copy.deepcopy(bundle["profile"]["uat"])}, "extensions": {}, "bundle": bundle}
 
 
-def compile_v2_project(project: Any) -> dict[str, Any]:
-    """Validate V2 and compile its unchanged V1 bundle plus an inert graph."""
-    normalized = validate_v2_project(project)
-    bundle = normalized["bundle"]
-    plan = compile_loaded_profile({"profile": bundle["profile"], "manifest": bundle["manifest"]})
-    decisions = normalized["workbook"]["capability_decisions"]
-    owner = normalized["workbook"]["organization"].get(
-        "service_owner_role", "unassigned"
-    )
+def _capability_nodes(decisions: dict[str, dict[str, Any]], owner: Any) -> list[dict[str, Any]]:
     if not isinstance(owner, str) or not owner:
         owner = "unassigned"
-    nodes = [
+    return [
         {
             "id": f"capability:{capability_id}",
             "resource_kind": "capability_gate",
@@ -453,6 +508,9 @@ def compile_v2_project(project: Any) -> dict[str, Any]:
         }
         for capability_id, decision in sorted(decisions.items())
     ]
+
+def _operation_nodes(plan: dict[str, Any], bundle: dict[str, Any], decisions: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    nodes: list[dict[str, Any]] = []
     for operation in plan["operations"]:
         owner = bundle["resource_ownership"].get(operation["id"], "core")
         capability = RESOURCE_CAPABILITIES.get(operation["resource"])
@@ -498,6 +556,21 @@ def compile_v2_project(project: Any) -> dict[str, Any]:
                 },
             }
         )
+    return nodes
+
+
+def _compiled_v2_response(normalized: dict[str, Any], bundle: dict[str, Any], plan: dict[str, Any], nodes: list[dict[str, Any]]) -> dict[str, Any]:
     graph = {"nodes": nodes}
     graph["graph_hash"] = _hash(graph)
     return {"project": normalized, "bundle": copy.deepcopy(bundle), "plan": plan, "graph": graph, "hashes": {"profile": plan["source_hashes"]["profile"], "manifest": plan["source_hashes"]["manifest"], "plan": plan["plan_hash"], "project": _hash(normalized), "graph": graph["graph_hash"]}}
+
+
+def compile_v2_project(project: Any) -> dict[str, Any]:
+    """Validate V2 and compile its unchanged V1 bundle plus an inert graph."""
+    normalized = validate_v2_project(project)
+    bundle = normalized["bundle"]
+    plan = compile_loaded_profile({"profile": bundle["profile"], "manifest": bundle["manifest"]})
+    decisions = normalized["workbook"]["capability_decisions"]
+    nodes = _capability_nodes(decisions, normalized["workbook"]["organization"].get("service_owner_role", "unassigned"))
+    nodes.extend(_operation_nodes(plan, bundle, decisions))
+    return _compiled_v2_response(normalized, bundle, plan, nodes)
