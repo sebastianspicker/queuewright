@@ -30,11 +30,12 @@ export function setHandoffModes(
 
 export function removeGroupPermission(role: RoleResource, groupKey: string): void {
   for (const acl of Object.values(role.acl)) {
+    if (!acl) continue
     const index = acl.indexOf(groupKey)
     if (index >= 0) acl.splice(index, 1)
   }
   role.acl = Object.fromEntries(
-    Object.entries(role.acl).filter(([, groups]) => groups.length > 0),
+    Object.entries(role.acl).filter(([, groups]) => groups && groups.length > 0),
   )
 }
 
@@ -74,7 +75,7 @@ function appendRead(role: RoleResource, groupKey: string): void {
 }
 
 export function addGroupPermission(role: RoleResource, groupKey: string, permission: Permission): void {
-  const updates = new Map<Permission, (target: RoleResource, key: string) => void>([
+  const updates = new Map<Permission, typeof appendFull>([
     ['work', appendFull],
     ['create', appendCreate],
     ['read', appendRead],

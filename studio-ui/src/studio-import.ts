@@ -6,12 +6,14 @@ import type {
   StudioProjectV2,
 } from './types'
 
+type ReplaceStudio = (...args: [StudioProject, StudioProjectV2]) => void
+
 export function readFile(file: Blob): Promise<string> {
   if (typeof file.text === 'function') return file.text()
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result ?? ''))
-    reader.onerror = () => reject(reader.error ?? new Error('Unable to read import file'))
+    reader.onload = () => { resolve(String(reader.result ?? '')) }
+    reader.onerror = () => { reject(reader.error ?? new Error('Unable to read import file')) }
     reader.readAsText(file)
   })
 }
@@ -56,7 +58,7 @@ export function projectFromBlueprint(blueprint: StudioProjectV2): StudioProject 
 
 export async function importValues(
   values: unknown[],
-  onReplace: (project: StudioProject, blueprint: StudioProjectV2) => void,
+  onReplace: ReplaceStudio,
 ): Promise<void> {
   const blueprint = values.map(blueprintValue).find(Boolean)
   if (blueprint) {
@@ -80,7 +82,7 @@ export async function importValues(
 
 export async function importFilesIntoStudio(
   input: FileList | File[],
-  onReplace: (project: StudioProject, blueprint: StudioProjectV2) => void,
+  onReplace: ReplaceStudio,
 ): Promise<string | undefined> {
   const files = [...input]
   if (files.length < 1 || files.length > 2) {

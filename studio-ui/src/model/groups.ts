@@ -121,7 +121,7 @@ function removeLeafDependencies(project: StudioProject, keys: Set<string>): void
   for (const role of project.manifest.roles) {
     role.acl = Object.fromEntries(
       Object.entries(role.acl)
-        .map(([permission, allowed]) => [permission, allowed.filter((key) => !keys.has(key))])
+        .map(([permission, allowed]) => [permission, (allowed ?? []).filter((key) => !keys.has(key))])
         .filter(([, allowed]) => allowed.length > 0),
     )
   }

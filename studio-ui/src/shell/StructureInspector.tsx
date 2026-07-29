@@ -14,11 +14,13 @@ import {
 import { useStudio } from '../studio-state'
 import type { GroupResource, StudioProject } from '../types'
 
+type ChangeHandler<Arguments extends unknown[]> = (...args: Arguments) => void
+
 type SwitchControl = ComponentType<{
   checked: boolean
   disabled?: boolean
   label: string
-  onChange(checked: boolean): void
+  onChange: ChangeHandler<[boolean]>
 }>
 
 function GroupDefinition({
@@ -34,9 +36,9 @@ function GroupDefinition({
   group: GroupResource
   groupName: string
   isRoot: boolean
-  onNameChange(name: string): void
-  onParentChange(parent: string): void
-  onTypeChange(kind: 'container' | 'leaf'): void
+  onNameChange: ChangeHandler<[string]>
+  onParentChange: ChangeHandler<[string]>
+  onTypeChange: ChangeHandler<['container' | 'leaf']>
   parents: GroupResource[]
   project: StudioProject
 }) {
@@ -45,14 +47,14 @@ function GroupDefinition({
       <p className="section-label">Definition</p>
       <label className="field">
         Name
-        <input value={groupName} onChange={(event) => onNameChange(event.target.value)} />
+        <input value={groupName} onChange={(event) => { onNameChange(event.target.value) }} />
       </label>
       <label className="field">
         Unit type
         <select
           value={group.kind}
           disabled={isRoot || project.target_schema_version === '1.0'}
-          onChange={(event) => onTypeChange(event.target.value as 'container' | 'leaf')}
+          onChange={(event) => { onTypeChange(event.target.value as 'container' | 'leaf') }}
         >
           <option value="container">Organizational unit</option>
           <option value="leaf">Ticket-bearing service</option>
@@ -60,7 +62,7 @@ function GroupDefinition({
       </label>
       <label className="field">
         Parent unit
-        <select value={group.parent ?? ''} disabled={isRoot} onChange={(event) => onParentChange(event.target.value)}>
+        <select value={group.parent ?? ''} disabled={isRoot} onChange={(event) => { onParentChange(event.target.value) }}>
           {isRoot ? <option value="">Root unit</option> : null}
           {parents.map((parent) => <option value={parent.key} key={parent.key}>{displayGroupName(project, parent)}</option>)}
         </select>
@@ -78,8 +80,8 @@ function LeafDetails({
 }: {
   entryPoints: string[]
   group: GroupResource
-  onEntryPointChange(checked: boolean): void
-  onRestrictedChange(checked: boolean): void
+  onEntryPointChange: ChangeHandler<[boolean]>
+  onRestrictedChange: ChangeHandler<[boolean]>
   Switch: SwitchControl
 }) {
   return (
@@ -107,7 +109,7 @@ export function StructureInspector({ Switch }: { Switch: SwitchControl }) {
   const parent = project.manifest.groups.find((item) => item.key === group.parent) ?? group
   const groupName = displayGroupName(project, group)
   const typeLabel = group.kind === 'leaf' ? 'Ticket-bearing service' : 'Organizational unit'
-  const close = () => dispatch({ type: 'group:select', id: undefined })
+  const close = () => { dispatch({ type: 'group:select', id: undefined }) }
   const remove = () => { updateProject(removeGroup(project, group.key)); close() }
   return (
     <>
@@ -116,13 +118,13 @@ export function StructureInspector({ Switch }: { Switch: SwitchControl }) {
         group={group}
         groupName={groupName}
         isRoot={isRoot}
-        onNameChange={(name) => updateProject(renameGroup(project, group.key, name), group.key)}
-        onParentChange={(parentKey) => updateProject(moveGroup(project, group.key, parentKey), group.key)}
-        onTypeChange={(kind) => updateProject(setGroupKind(project, group.key, kind), group.key)}
+        onNameChange={(name) => { updateProject(renameGroup(project, group.key, name), group.key) }}
+        onParentChange={(parentKey) => { updateProject(moveGroup(project, group.key, parentKey), group.key) }}
+        onTypeChange={(kind) => { updateProject(setGroupKind(project, group.key, kind), group.key) }}
         parents={parents}
         project={project}
       />
-      {group.kind === 'leaf' ? <LeafDetails entryPoints={customerEntryPoints(project)} group={group} onEntryPointChange={(checked) => updateProject(setCustomerEntryPoint(project, group.key, checked), group.key)} onRestrictedChange={(checked) => updateProject(setRestricted(project, group.key, checked), group.key)} Switch={Switch} /> : null}
+      {group.kind === 'leaf' ? <LeafDetails entryPoints={customerEntryPoints(project)} group={group} onEntryPointChange={(checked) => { updateProject(setCustomerEntryPoint(project, group.key, checked), group.key) }} onRestrictedChange={(checked) => { updateProject(setRestricted(project, group.key, checked), group.key) }} Switch={Switch} /> : null}
       <button className="button primary inspector-save" type="button" onClick={validateNow}>Validate changes</button>
       {!isRoot ? <button className="text-button danger" type="button" onClick={remove}>Remove from structure</button> : null}
     </>

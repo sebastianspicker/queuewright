@@ -202,14 +202,17 @@ export function studioReducer(state: State, action: Action): State {
   }
 }
 
+type SyncCallback<Arguments extends unknown[] = []> = (...args: Arguments) => void
+type AsyncCallback<Arguments extends unknown[]> = (...args: Arguments) => Promise<void>
+
 interface StudioContextValue extends State {
   dispatch: Dispatch<Action>
-  updateProject(project: StudioProject, selectedGroup?: string): void
-  updateBlueprint(project: StudioProjectV2): void
-  createNew(kind: 'blank' | 'example'): Promise<void>
-  openProject(id: string): Promise<void>
-  importFiles(files: FileList | File[]): Promise<void>
-  validateNow(): void
+  updateProject: SyncCallback<[StudioProject, string?]>
+  updateBlueprint: SyncCallback<[StudioProjectV2]>
+  createNew: AsyncCallback<['blank' | 'example']>
+  openProject: AsyncCallback<[string]>
+  importFiles: AsyncCallback<[FileList | File[]]>
+  validateNow: SyncCallback
 }
 
 const StudioContext = createContext<StudioContextValue | undefined>(undefined)
@@ -315,7 +318,7 @@ function hydrateStudio(
 ): Promise<void> {
   return Promise.all([loadActiveDraft(), listDrafts()])
     .then(([storedActive, projects]) => resolveHydration(storedActive, projects))
-    .then((result) => applyHydration(dispatch, result, isCancelled))
+    .then((result) => { applyHydration(dispatch, result, isCancelled) })
     .catch(() => {
       if (!isCancelled()) dispatch({ type: 'hydrate', projects: [] })
     })
@@ -361,7 +364,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const controller = new AbortController()
     void api.loadCatalog(controller.signal)
-      .then((catalog) => dispatch({ type: 'catalog', catalog }))
+      .then((catalog) => { dispatch({ type: 'catalog', catalog }) })
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === 'AbortError')) {
           dispatch({
@@ -380,8 +383,8 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     const timer = window.setTimeout(() => {
       dispatch({ type: 'storage:start', revision })
       void saveDraft(project, state.blueprint)
-        .then(() => dispatch({ type: 'storage:success', revision }))
-        .catch(() => dispatch({ type: 'storage:error', revision }))
+        .then(() => { dispatch({ type: 'storage:success', revision }) })
+        .catch(() => { dispatch({ type: 'storage:error', revision }) })
     }, 180)
     return () => window.clearTimeout(timer)
   }, [state.hydrated, state.project, state.blueprint, state.revision])
