@@ -202,8 +202,8 @@ export function studioReducer(state: State, action: Action): State {
   }
 }
 
-type SyncCallback<Arguments extends unknown[] = []> = (...args: Arguments) => void
-type AsyncCallback<Arguments extends unknown[]> = (...args: Arguments) => Promise<void>
+type SyncCallback<Arguments extends unknown[] = []> = (..._args: Arguments) => void
+type AsyncCallback<Arguments extends unknown[]> = (..._args: Arguments) => Promise<void>
 
 interface StudioContextValue extends State {
   dispatch: Dispatch<Action>

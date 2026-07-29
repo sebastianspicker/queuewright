@@ -14,7 +14,7 @@ import {
 import { useStudio } from '../studio-state'
 import type { GroupResource, StudioProject } from '../types'
 
-type ChangeHandler<Arguments extends unknown[]> = (...args: Arguments) => void
+type ChangeHandler<Arguments extends unknown[]> = (..._args: Arguments) => void
 
 type SwitchControl = ComponentType<{
   checked: boolean

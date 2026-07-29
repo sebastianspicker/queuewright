@@ -3,7 +3,7 @@ import type { ComponentType } from 'react'
 import { HANDOFF_MODES, setHandoffModes, toggleFeature } from '../project-model'
 import { useStudio } from '../studio-state'
 
-type ChangeHandler<Arguments extends unknown[]> = (...args: Arguments) => void
+type ChangeHandler<Arguments extends unknown[]> = (..._args: Arguments) => void
 
 type SwitchControl = ComponentType<{
   checked: boolean

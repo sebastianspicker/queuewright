@@ -6,7 +6,7 @@ import type {
   StudioProjectV2,
 } from './types'
 
-type ReplaceStudio = (...args: [StudioProject, StudioProjectV2]) => void
+type ReplaceStudio = (..._args: [StudioProject, StudioProjectV2]) => void
 
 export function readFile(file: Blob): Promise<string> {
   if (typeof file.text === 'function') return file.text()

@@ -42,7 +42,11 @@ export function removeGroupPermission(role: RoleResource, groupKey: string): voi
 export function permissionFor(role: RoleResource, group: string): Permission {
   if (role.acl.full?.includes(group)) return 'work'
   if (role.acl.create?.includes(group)) return 'create'
-  if (role.acl.read?.includes(group) || role.acl.read_change_overview?.includes(group)) {
+  const readGroups = [
+    ...(role.acl.read ?? []),
+    ...(role.acl.read_change_overview ?? []),
+  ]
+  if (readGroups.includes(group)) {
     return 'read'
   }
   return 'none'
