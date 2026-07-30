@@ -82,18 +82,19 @@ interface State {
 }
 
 const seed = exampleProject()
+const staticDemo = import.meta.env.VITE_STATIC_DEMO === 'true'
 const initial: State = {
   project: seed,
-  projects: [],
+  projects: staticDemo ? [seed] : [],
   catalog: bundledCatalog,
   step: 'start',
   selectedGroup: 'student_services',
   selectedFeature: 'cross_department_handoff',
-  hydrated: false,
+  hydrated: staticDemo,
   revision: 0,
   dirty: true,
   compiling: false,
-  storageStatus: 'loading',
+  storageStatus: staticDemo ? 'saved' : 'loading',
 }
 
 function upsert(
@@ -203,6 +204,7 @@ export function studioReducer(state: State, action: Action): State {
 }
 
 interface StudioContextValue extends State {
+  demoMode: boolean
   dispatch: Dispatch<Action>
   updateProject(project: StudioProject, selectedGroup?: string): void
   updateBlueprint(project: StudioProjectV2): void
@@ -351,6 +353,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (staticDemo) return
     let cancelled = false
     void hydrateStudio(dispatch, () => cancelled).catch(() => {
       if (!cancelled) dispatch({ type: 'hydrate', projects: [] })
@@ -359,6 +362,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (staticDemo) return
     const controller = new AbortController()
     void api.loadCatalog(controller.signal)
       .then((catalog) => { dispatch({ type: 'catalog', catalog }) })
@@ -374,6 +378,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (staticDemo) return
     if (!state.hydrated) return
     const project = state.project
     const revision = state.revision
@@ -387,6 +392,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }, [state.hydrated, state.project, state.blueprint, state.revision])
 
   useEffect(() => {
+    if (staticDemo) return
     if (!state.hydrated) return
     const project = state.project
     const blueprint = state.blueprint
@@ -415,6 +421,14 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     const source = kind === 'blank'
       ? blankProject()
       : exampleProject(`university-${Date.now().toString(36)}`)
+    if (staticDemo) {
+      dispatch({
+        type: 'project:replace',
+        project: source,
+        selectedGroup: kind === 'blank' ? 'service_general' : 'student_services',
+      })
+      return
+    }
     try {
       let project = await api.importBundle(source.profile, source.manifest)
       project = { ...project, id: source.id, name: source.name }
@@ -432,6 +446,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const openProject = useCallback(async (id: string) => {
+    if (staticDemo) return
     const project = await loadDraft(id)
     if (!project) return
     try {
@@ -450,6 +465,13 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const importFiles = useCallback(async (input: FileList | File[]) => {
+    if (staticDemo) {
+      dispatch({
+        type: 'import:error',
+        message: 'Simulated action only. Import is available in the local Studio.',
+      })
+      return
+    }
     dispatch({ type: 'import:error', message: undefined })
     const message = await importFilesIntoStudio(input, ([project, blueprint]) => {
       dispatch({ type: 'project:replace', project, blueprint })
@@ -458,11 +480,20 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const validateNow = useCallback(() => {
+    if (staticDemo) {
+      dispatch({
+        type: 'compile:error',
+        message: 'Simulated action only. Authoritative validation requires the local Studio service.',
+        revision: state.revision,
+      })
+      return
+    }
     runCompile(state.project, state.blueprint, state.revision)
   }, [runCompile, state.project, state.blueprint, state.revision])
 
   const value = useMemo<StudioContextValue>(() => ({
     ...state,
+    demoMode: staticDemo,
     dispatch,
     updateProject,
     updateBlueprint,

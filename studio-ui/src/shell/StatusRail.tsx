@@ -23,6 +23,7 @@ export function StatusRail() {
     compiling,
     compileError,
     storageStatus,
+    demoMode,
   } = useStudio()
   const units = Math.max(0, project.manifest.groups.length - 1)
   const services = project.manifest.groups.filter((group) => group.kind === 'leaf').length
@@ -37,8 +38,8 @@ export function StatusRail() {
   ).length
   return (
     <footer className="status-rail">
-      <StatusItem><Laptop size={21} /> Local only</StatusItem>
-      <StatusItem><RefreshCw size={20} /> {storageStatus === 'error' ? 'Browser save failed' : storageStatus === 'saved' ? 'Saved locally' : 'Saving locally…'}</StatusItem>
+      <StatusItem><Laptop size={21} /> {demoMode ? 'Static simulation' : 'Local only'}</StatusItem>
+      <StatusItem><RefreshCw size={20} /> {demoMode ? 'Changes reset on reload' : storageStatus === 'error' ? 'Browser save failed' : storageStatus === 'saved' ? 'Saved locally' : 'Saving locally…'}</StatusItem>
       <StatusItem><Building2 size={20} /> {units} units</StatusItem>
       <StatusItem><Tag size={20} /> {services} services</StatusItem>
       <StatusItem><Box size={20} /> {capabilities} capabilities</StatusItem>
@@ -53,7 +54,9 @@ export function StatusRail() {
           className={result && blueprintResult && !dirty ? 'status-good' : 'status-muted'}
           size={21}
         />
-        {compiling
+        {demoMode
+          ? 'Validation simulated only'
+          : compiling
           ? 'Validating…'
           : result && blueprintResult && !dirty
             ? 'Local blueprint valid'

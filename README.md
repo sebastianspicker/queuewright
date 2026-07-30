@@ -9,6 +9,14 @@ Queuewright does not connect to Zammad, read credentials, inspect a tenant, or
 apply configuration. Plans, graphs, and `ready` states are local design
 artifacts.
 
+## Static demo
+
+Explore the [Queuewright Studio static demo](https://sebastianspicker.github.io/queuewright/).
+It uses the real Studio interface and bundled fictional university fixture.
+Every command-capable action is marked as simulated. The demo does not call the
+loopback compiler, validate a configuration, create exports, persist changes,
+or connect to a tenant.
+
 Version `0.1.0-alpha.1` is an unpublished source-release candidate. File
 formats and Studio workflows may change before `1.0.0`.
 
@@ -32,8 +40,8 @@ Not implemented:
 - a Zammad HTTP adapter;
 - tenant changes or rollback commands exposed to users;
 - credential storage or environment-based connection discovery;
-- a hosted application, Python package, container image, or deployment
-  manifest;
+- a hosted operational application, Python package, container image, or
+  deployment manifest;
 - compatibility guarantees before `1.0.0`.
 
 The connected-control package is not imported by the CLI or Studio. See
