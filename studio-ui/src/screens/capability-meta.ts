@@ -1,10 +1,11 @@
 import type {
   BlueprintCompileResult,
   CapabilityCompletion,
-  CapabilityDecision,
   CapabilityDelivery,
   StudioProjectV2,
 } from '../types'
+
+export { replaceDecision } from './capability-decisions'
 
 export const completions: CapabilityCompletion[] = [
   'decision_required',
@@ -139,56 +140,6 @@ export function replaceOrganizationValue(
       organization: {
         ...project.workbook.organization,
         [key]: value,
-      },
-    },
-  }
-}
-
-export function replaceDecision(
-  project: StudioProjectV2,
-  id: string,
-  patch: Partial<Pick<CapabilityDecision, 'enabled' | 'completion'>>,
-): StudioProjectV2 {
-  const source = project.workbook.capability_decisions
-  const target = Object.entries(source).find(([candidate]) => candidate === id)
-  if (!target) return project
-  const decisions = Object.fromEntries(
-    Object.entries(source).map(([key, decision]) => [key, { ...decision }]),
-  )
-  const updatedTarget = Object.entries(decisions).find(([candidate]) => candidate === id)?.[1]
-  const decisionFor = (capabilityId: string) => Object.entries(decisions).find(
-    ([candidate]) => candidate === capabilityId,
-  )?.[1]
-  const disable = (capabilityId: string) => {
-    const decision = decisionFor(capabilityId)
-    if (!decision) return
-    decision.enabled = false
-    decision.completion = decision.delivery === 'unsupported' ? 'blocked' : 'decision_required'
-    for (const [dependentId, dependent] of Object.entries(decisions)) {
-      if (dependent.dependencies.includes(capabilityId)) disable(dependentId)
-    }
-  }
-  const enable = (capabilityId: string) => {
-    const decision = decisionFor(capabilityId)
-    if (!decision) return
-    decision.enabled = true
-    for (const dependency of decision.dependencies) enable(dependency)
-    if (decision.delivery === 'unsupported') decision.completion = 'blocked'
-  }
-  const setEnabled = (capabilityId: string, enabled: boolean) => {
-    if (enabled) enable(capabilityId)
-    else disable(capabilityId)
-  }
-  if (patch.enabled !== undefined) setEnabled(id, patch.enabled)
-  if (patch.completion !== undefined && updatedTarget) {
-    updatedTarget.completion = patch.completion
-  }
-  return {
-    ...project,
-    workbook: {
-      ...project.workbook,
-      capability_decisions: {
-        ...decisions,
       },
     },
   }

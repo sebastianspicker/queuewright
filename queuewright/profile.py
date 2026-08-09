@@ -43,8 +43,24 @@ from .profile_support import (
 )
 from .profile_uat import _validate_uat
 
-
 __all__ = ["is_forbidden_local_path", "load_profile", "validate_loaded_profile", "validate_profile"]
+
+
+def _is_relative_json_path(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and not Path(value).is_absolute()
+        and Path(value).suffix.lower() == ".json"
+    )
+
+
+def _matches_identifier(value: Any, pattern: Any) -> bool:
+    return isinstance(value, str) and pattern.fullmatch(value) is not None
+
+
+def _is_non_empty_text(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
 
 
 def _profile_path(profile: str | Path) -> Path:
@@ -57,12 +73,7 @@ def _profile_path(profile: str | Path) -> Path:
 
 def _manifest_name(bundle: dict[str, Any]) -> str:
     manifest_name = bundle.get("manifest")
-    if (
-        not isinstance(manifest_name, str)
-        or not manifest_name
-        or Path(manifest_name).is_absolute()
-        or Path(manifest_name).suffix.lower() != ".json"
-    ):
+    if not _is_relative_json_path(manifest_name):
         _fail("profile manifest must be a non-empty relative JSON path")
     return manifest_name
 
@@ -103,29 +114,19 @@ def _validate_schema_versions(bundle: dict[str, Any], manifest: dict[str, Any]) 
 
 
 def _validate_profile_identifier(bundle: dict[str, Any]) -> None:
-    if (
-        not isinstance(bundle.get("profile_key"), str)
-        or PROFILE_KEY.fullmatch(bundle["profile_key"]) is None
-    ):
+    if not _matches_identifier(bundle.get("profile_key"), PROFILE_KEY):
         _fail("invalid profile_key")
 
 
 def _validate_manifest_identifier(manifest: dict[str, Any]) -> None:
-    if (
-        not isinstance(manifest.get("manifest_key"), str)
-        or MANIFEST_KEY.fullmatch(manifest["manifest_key"]) is None
-    ):
+    if not _matches_identifier(manifest.get("manifest_key"), MANIFEST_KEY):
         _fail("invalid manifest_key")
 
 
 def _validate_profile_metadata(bundle: dict[str, Any], manifest: dict[str, Any]) -> None:
     _validate_profile_identifier(bundle)
     _validate_manifest_identifier(manifest)
-    if (
-        not isinstance(bundle.get("display_name"), str)
-        or not bundle["display_name"].strip()
-        or bundle.get("offline_only") is not True
-    ):
+    if not _is_non_empty_text(bundle.get("display_name")) or bundle.get("offline_only") is not True:
         _fail("profile requires display_name and offline_only true")
 
 
@@ -144,38 +145,25 @@ def _validate_profile_structure(
 def _validate_profile_namespace(manifest: dict[str, Any]) -> tuple[str, str]:
     prefix = manifest.get("managed_prefix")
     namespace = manifest.get("technical_namespace")
-    if (
-        not isinstance(prefix, str)
-        or len(prefix) < 2
-        or not isinstance(namespace, str)
-        or NAMESPACE.fullmatch(namespace) is None
-    ):
+    if not isinstance(prefix, str) or len(prefix) < 2 or not _matches_identifier(namespace, NAMESPACE):
         _fail("invalid managed prefix or technical namespace")
     return prefix, namespace
 
 
 def _validate_safety_required_values(safety: dict[str, Any]) -> None:
-    if (
-        safety.get("allow_existing_object_writes") is not False
-        or safety.get("allow_delete") is not False
-        or safety.get("production_group_reference") != "forbidden"
-        or safety.get("activation_strategy")
-        != "create_inactive_then_readback_collision_scan_then_activate"
-    ):
+    required_values = {
+        "allow_existing_object_writes": False,
+        "allow_delete": False,
+        "production_group_reference": "forbidden",
+        "activation_strategy": "create_inactive_then_readback_collision_scan_then_activate",
+    }
+    if any(safety.get(field) != expected for field, expected in required_values.items()):
         _fail("invalid safety contract")
 
 
 def _validate_safety_optional_values(safety: dict[str, Any]) -> None:
     surfaces = safety.get("global_surfaces_accepted")
-    if (
-        surfaces is not None
-        and (
-            not isinstance(surfaces, list)
-            or not all(
-                isinstance(value, str) and value.strip() for value in surfaces
-            )
-        )
-    ):
+    if surfaces is not None and not _is_string_list(surfaces):
         _fail("safety_contract.global_surfaces_accepted must be a string list")
     _validate_safety_text_values(safety)
 
@@ -186,9 +174,7 @@ def _validate_safety_text_values(safety: dict[str, Any]) -> None:
         "object_manager",
         "production_impact_claim",
     ):
-        if text_field in safety and (
-            not isinstance(safety[text_field], str) or not safety[text_field].strip()
-        ):
+        if text_field in safety and not _is_non_empty_text(safety[text_field]):
             _fail(f"safety_contract.{text_field} must be non-empty text")
 
 
@@ -222,15 +208,7 @@ def _validate_restricted_reference_set(
     reference_sets: dict[str, Any], restricted: set[str]
 ) -> None:
     values = reference_sets["S"]
-    if (
-        not isinstance(values, list)
-        or not all(
-            isinstance(value, str) and RESOURCE_KEY.fullmatch(value) is not None
-            for value in values
-        )
-        or set(values) != restricted
-        or len(values) != len(set(values))
-    ):
+    if not _is_restricted_reference_set(values, restricted):
         _fail("reference set descriptors are invalid or S does not match restricted leaves")
 
 
@@ -254,19 +232,32 @@ def _manifest_collections(
         "reports": _keyed_items(manifest.get("report_profiles"), "report profiles"),
     }
     tags = manifest.get("tags")
-    if (
-        not isinstance(tags, list)
-        or not tags
-        or not all(
-            isinstance(tag, str) and tag.startswith(namespace.removesuffix("_") + "/")
-            for tag in tags
-        )
-        or len(tags) != len(set(tags))
-    ):
+    if not _are_unique_namespaced_tags(tags, namespace):
         _fail("tags must be unique and namespaced")
     collections["tags"] = tags
     collections["tag_set"] = set(tags)
     return collections
+
+
+def _is_string_list(value: Any) -> bool:
+    return isinstance(value, list) and all(_is_non_empty_text(item) for item in value)
+
+
+def _is_restricted_reference_set(values: Any, restricted: set[str]) -> bool:
+    if not isinstance(values, list):
+        return False
+    if not all(_matches_identifier(value, RESOURCE_KEY) for value in values):
+        return False
+    return set(values) == restricted and len(values) == len(set(values))
+
+
+def _are_unique_namespaced_tags(tags: Any, namespace: str) -> bool:
+    if not isinstance(tags, list) or not tags:
+        return False
+    expected_prefix = namespace.removesuffix("_") + "/"
+    if not all(isinstance(tag, str) and tag.startswith(expected_prefix) for tag in tags):
+        return False
+    return len(tags) == len(set(tags))
 
 
 def _validate_collection_contracts(

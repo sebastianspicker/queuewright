@@ -62,8 +62,8 @@ The offline CLI and Studio service use the Python standard library. The pinned
 
 ## Installation
 
-Queuewright runs from a source checkout. There is no `pyproject.toml`, wheel,
-or installed console command.
+Queuewright runs from a source checkout. Its `pyproject.toml` provides project
+metadata and Ruff configuration; there is no wheel or installed console command.
 
 For the offline CLI and Studio service, run commands from the repository root.
 No Python dependency installation is required.

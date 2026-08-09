@@ -14,103 +14,9 @@ from queuewright_control import (
     ControlPlane,
     InMemoryKeyProvider,
     Ledger,
-    LocalDispatcher,
     Operation,
-    Request,
 )
-
-
-BOOTSTRAP = "launcher-only-bootstrap-capability-1234567890"
-
-
-class FakeTransport:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, dict[str, object]]] = []
-        self.ambiguous = False
-        self.bad_readback = False
-        self.rollback_applied_then_raises = False
-        self.authorization_changes_after_writes = False
-        self.write_raises_before_mutation = False
-        self.reconcile_not_applied = False
-        self.current_hashes: dict[str, str] = {}
-        self.identity = {
-            "canonical_origin": "https://tenant.example",
-            "tenant_fingerprint": "tenant-fingerprint",
-            "actor": "studio-service-user",
-            "permissions": ["admin.group"],
-            "version": "6.4",
-            "resolved_addresses": ["93.184.216.34"],
-            "redirected": False,
-        }
-
-    def __call__(self, kind: str, **kwargs: object) -> dict[str, object]:
-        self.calls.append((kind, kwargs))
-        if kind == "identity":
-            return dict(self.identity)
-        if kind == "reauthorize":
-            actor = self.identity["actor"]
-            if self.authorization_changes_after_writes and any(
-                call_kind == "write" for call_kind, _ in self.calls[:-1]
-            ):
-                actor = "changed-actor"
-            return {
-                "tenant_fingerprint": self.identity["tenant_fingerprint"],
-                "actor": actor,
-                "permissions": self.identity["permissions"],
-                "resolved_addresses": self.identity["resolved_addresses"],
-                "canonical_origin": self.identity["canonical_origin"],
-                "version": self.identity["version"],
-            }
-        operation = kwargs.get("operation")
-        if not isinstance(operation, Operation):
-            return {}
-        if kind == "precondition":
-            return {"hash": operation.precondition}
-        if kind == "write":
-            if self.write_raises_before_mutation:
-                self.write_raises_before_mutation = False
-                raise TimeoutError("write failed before remote mutation")
-            return {"ambiguous": self.ambiguous}
-        if kind == "reconcile":
-            if self.reconcile_not_applied:
-                return {"matched": False, "hash": operation.precondition}
-            return {"matched": True, "hash": operation.postcondition}
-        if kind == "readback" and self.bad_readback:
-            return {"hash": "unexpected-state"}
-        if kind == "current_hash":
-            return {
-                "hash": self.current_hashes.get(
-                    operation.id, operation.postcondition
-                )
-            }
-        if kind in {"readback", "verify"}:
-            return {"hash": operation.postcondition}
-        if kind == "rollback":
-            expected = str(
-                operation.rollback.get("postcondition", operation.precondition)
-            )
-            self.current_hashes[operation.id] = expected
-            if self.rollback_applied_then_raises:
-                self.rollback_applied_then_raises = False
-                raise TimeoutError("response lost after rollback")
-            return {"hash": expected}
-        return {}
-
-
-class FlakyAnchorProvider(InMemoryKeyProvider):
-    def __init__(self, key: bytes) -> None:
-        super().__init__(key)
-        self.fail_updates = 0
-
-    def compare_and_set_audit_anchor(
-        self,
-        expected: tuple[int, str] | None,
-        replacement: tuple[int, str],
-    ) -> bool:
-        if self.fail_updates:
-            self.fail_updates -= 1
-            return False
-        return super().compare_and_set_audit_anchor(expected, replacement)
+from tests.control_test_support import FakeTransport, FlakyAnchorProvider
 
 
 class ControlTests(unittest.TestCase):
@@ -197,7 +103,7 @@ class ControlTests(unittest.TestCase):
         with self.assertRaisesRegex(ControlError, "claims are incomplete"):
             invalid_plane.connect("https://tenant.example", "temporary-secret")
         failed_credential = invalid.calls[0][1]["credential"]
-        self.assertTrue(getattr(failed_credential, "closed"))
+        self.assertTrue(failed_credential.closed)
 
         self.ready()
         self.plane.apply("run-one", {"version": 1}, {"graph": 1})
@@ -481,53 +387,56 @@ class ControlTests(unittest.TestCase):
             ("UPDATE runs SET state='verified' WHERE run_id='run-one'", ()),
             ("DELETE FROM intents WHERE run_id='run-one'", ()),
             (
-                "UPDATE outcomes SET postimage_hash='forged-current' "
-                "WHERE run_id='run-one'",
+                (
+                    "UPDATE outcomes SET postimage_hash='forged-current' "
+                    "WHERE run_id='run-one'"
+                ),
                 (),
             ),
             (
-                "INSERT INTO intent_resolutions VALUES "
-                "('run-one','create-group','not_applied','absent',1.0)",
+                (
+                    "INSERT INTO intent_resolutions VALUES "
+                    "('run-one','create-group','not_applied','absent',1.0)"
+                ),
                 (),
             ),
             (
-                "INSERT INTO rollback_intents VALUES "
-                "('run-one','create-group','inactive-hash',1.0)",
+                (
+                    "INSERT INTO rollback_intents VALUES "
+                    "('run-one','create-group','inactive-hash',1.0)"
+                ),
                 (),
             ),
         ]
         for statement, parameters in corruptions:
-            with self.subTest(statement=statement):
-                with tempfile.TemporaryDirectory() as directory:
-                    ledger = Ledger(
+            with self.subTest(statement=statement), tempfile.TemporaryDirectory() as directory:
+                ledger = Ledger(
                         os.path.join(directory, "tamper.sqlite3"),
                         InMemoryKeyProvider(b"t" * 32),
                     )
-                    transport = FakeTransport()
-                    plane = ControlPlane(
+                transport = FakeTransport()
+                plane = ControlPlane(
                         ledger,
                         self.policy,
                         transport,
                         resolver=lambda _: ["93.184.216.34"],
-                    )
-                    plane.connect("https://tenant.example", "temporary-token")
-                    preview = plane.make_preview(
+                )
+                plane.connect("https://tenant.example", "temporary-token")
+                preview = plane.make_preview(
                         {"version": 1},
                         {"graph": 1},
                         [self.operation],
                         project_id="project-one",
-                    )
-                    plane.approve(preview.hash)
-                    plane.apply("run-one", {"version": 1}, {"graph": 1})
-                    ledger.db.execute(statement, parameters)
+                )
+                plane.approve(preview.hash)
+                plane.apply("run-one", {"version": 1}, {"graph": 1})
+                ledger.db.execute(statement, parameters)
 
-                    with self.assertRaisesRegex(ControlError, "authenticated audit"):
-                        plane.rollback("run-one")
-                    self.assertNotIn(
-                        "rollback", [kind for kind, _ in transport.calls]
-                    )
-                    plane.disconnect()
-                    ledger.close()
+                with self.assertRaisesRegex(ControlError, "authenticated audit"):
+                    plane.rollback("run-one")
+                self.assertNotIn("rollback", [kind for kind, _ in transport.calls])
+                plane.disconnect()
+                ledger.close()
 
     def test_deleting_authenticated_recovery_rows_fails_closed(self) -> None:
         self.transport.write_raises_before_mutation = True
@@ -658,70 +567,5 @@ class ControlTests(unittest.TestCase):
             reopened = Ledger(path, provider)
             self.assertTrue(reopened.verify_audit_chain())
             reopened.close()
-
-
-class DispatcherTests(unittest.TestCase):
-    def request(self, method: str, path: str, **headers: str) -> Request:
-        return Request(
-            method,
-            path,
-            {"Host": "127.0.0.1:9443", "Origin": "http://127.0.0.1:9443", **headers},
-        )
-
-    def test_one_time_bootstrap_route_and_csrf(self) -> None:
-        dispatcher = LocalDispatcher(
-            "127.0.0.1:9443",
-            "http://127.0.0.1:9443",
-            BOOTSTRAP,
-            {"/preview": ("GET", "POST")},
-        )
-        denied = dispatcher.dispatch(
-            self.request("POST", "/bootstrap"), lambda *_: {}
-        )
-        self.assertEqual(denied.status, 401)
-        boot = dispatcher.dispatch(
-            self.request("POST", "/bootstrap", **{"X-Bootstrap-Token": BOOTSTRAP}),
-            lambda *_: {},
-        )
-        self.assertEqual(boot.status, 201)
-        replay = dispatcher.dispatch(
-            self.request("POST", "/bootstrap", **{"X-Bootstrap-Token": BOOTSTRAP}),
-            lambda *_: {},
-        )
-        self.assertEqual(replay.status, 401)
-        session = str(boot.body["session_id"])
-        no_csrf = dispatcher.dispatch(
-            self.request("POST", "/preview", **{"X-Session": session}),
-            lambda *_: {},
-        )
-        self.assertEqual(no_csrf.status, 403)
-        ok = dispatcher.dispatch(
-            self.request(
-                "POST",
-                "/preview",
-                **{
-                    "X-Session": session,
-                    "X-CSRF-Token": str(boot.body["csrf"]),
-                },
-            ),
-            lambda *_: {"ok": True},
-        )
-        self.assertEqual(ok.body, {"ok": True})
-        missing = dispatcher.dispatch(
-            self.request("GET", "/arbitrary", **{"X-Session": session}),
-            lambda *_: {},
-        )
-        self.assertEqual(missing.status, 404)
-
-    def test_dispatcher_rejects_non_loopback_construction(self) -> None:
-        with self.assertRaises(ControlError):
-            LocalDispatcher(
-                "localhost:9443",
-                "http://localhost:9443",
-                BOOTSTRAP,
-                {},
-            )
-
-
 if __name__ == "__main__":
     unittest.main()
