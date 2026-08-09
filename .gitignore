@@ -66,6 +66,12 @@ venv/
 .tox/
 .nox/
 .cache/
+/.repowise/
+/.mcp.json
+/AUDIT_LEDGER.md
+/logs/
+/wip/
+/work-in-progress/
 
 # --- Build / coverage ---
 dist/
