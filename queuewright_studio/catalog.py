@@ -109,12 +109,21 @@ def _add_identity_ownership(manifest: dict[str, Any], add: Callable[[str, str, s
             group["key"],
             "sensitive_area_handling" if group.get("restricted") is True else CORE_OWNER,
         )
-    for collection in ("organizations", "roles"):
-        for resource in manifest[collection]:
-            add(collection, resource["key"], CORE_OWNER)
-    for collection in ("agents", "customers"):
-        for user in manifest["users"][collection]:
-            add(collection, user["key"], "dummy_users_uat")
+    _add_keyed_resource_ownership(manifest, ("organizations", "roles"), CORE_OWNER, add)
+    _add_keyed_resource_ownership(
+        manifest["users"], ("agents", "customers"), "dummy_users_uat", add
+    )
+
+
+def _add_keyed_resource_ownership(
+    resources_by_collection: dict[str, Any],
+    collections: tuple[str, ...],
+    owner: str,
+    add: Callable[[str, str, str], None],
+) -> None:
+    for collection in collections:
+        for resource in resources_by_collection[collection]:
+            add(collection, resource["key"], owner)
 
 
 def _ownership_tag_sets(

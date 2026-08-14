@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NamedTuple
 
 from .profile_support import (
     HANDOFF_PROBE_FIELDS,
@@ -14,6 +14,21 @@ from .profile_support import (
     _keyed_items,
     _shape,
 )
+
+
+class _UatValidationContext(NamedTuple):
+    leaf_keys: set[str]
+    agents: dict[str, dict[str, Any]]
+    customers: dict[str, dict[str, Any]]
+    tags: set[str]
+    jobs: dict[str, dict[str, Any]]
+    ticket_options: dict[str, set[str]]
+
+
+class _UatScenarioReferences(NamedTuple):
+    scenarios: dict[str, dict[str, Any]]
+    context: _UatValidationContext
+
 
 def _validate_uat_contracts(
     profile_uat: Any, manifest_uat: Any
@@ -77,13 +92,29 @@ def _validate_uat_defaults(
             _fail(f"UAT default for {field} is not a declared field option")
 
 
-def _validate_uat_scenario_core(
-    key: str,
+def _is_nonempty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+def _has_valid_uat_scenario_core(
     scenario: dict[str, Any],
     leaf_keys: set[str],
     agents: dict[str, dict[str, Any]],
     customers: dict[str, dict[str, Any]],
-    ticket_options: dict[str, set[str]],
+) -> bool:
+    return (
+        _is_nonempty_string(scenario.get("kind"))
+        and _is_nonempty_string(scenario.get("label"))
+        and scenario.get("group") in leaf_keys
+        and scenario.get("customer") in customers
+        and scenario.get("agent") in agents
+    )
+
+
+def _validate_uat_scenario_core(
+    key: str,
+    scenario: dict[str, Any],
+    context: _UatValidationContext,
 ) -> None:
     _shape(
         scenario,
@@ -98,16 +129,10 @@ def _validate_uat_scenario_core(
             "label",
             "number",
         },
-        allowed=SCENARIO_BASE_FIELDS | set(ticket_options),
+        allowed=SCENARIO_BASE_FIELDS | set(context.ticket_options),
     )
-    if (
-        not isinstance(scenario.get("kind"), str)
-        or not scenario["kind"]
-        or not isinstance(scenario.get("label"), str)
-        or not scenario["label"]
-        or scenario.get("group") not in leaf_keys
-        or scenario.get("customer") not in customers
-        or scenario.get("agent") not in agents
+    if not _has_valid_uat_scenario_core(
+        scenario, context.leaf_keys, context.agents, context.customers
     ):
         _fail(f"invalid UAT scenario: {key}")
 
@@ -116,13 +141,15 @@ def _validate_uat_scenario_tags(
     key: str, scenario: dict[str, Any], tags: set[str]
 ) -> None:
     expected_tags = scenario.get("expected_tags")
-    if (
-        not isinstance(expected_tags, list)
-        or not expected_tags
-        or not all(isinstance(tag, str) for tag in expected_tags)
-        or len(expected_tags) != len(set(expected_tags))
-        or not set(expected_tags).issubset(tags)
-    ):
+    if not isinstance(expected_tags, list):
+        _fail(f"invalid UAT scenario tags: {key}")
+    if not expected_tags:
+        _fail(f"invalid UAT scenario tags: {key}")
+    if not all(isinstance(tag, str) for tag in expected_tags):
+        _fail(f"invalid UAT scenario tags: {key}")
+    if len(expected_tags) != len(set(expected_tags)):
+        _fail(f"invalid UAT scenario tags: {key}")
+    if not set(expected_tags).issubset(tags):
         _fail(f"invalid UAT scenario tags: {key}")
 
 
@@ -152,28 +179,18 @@ def _validate_uat_scenario_options(
 def _validate_uat_scenario(
     key: str,
     scenario: dict[str, Any],
-    leaf_keys: set[str],
-    agents: dict[str, dict[str, Any]],
-    customers: dict[str, dict[str, Any]],
-    tags: set[str],
-    ticket_options: dict[str, set[str]],
+    context: _UatValidationContext,
 ) -> None:
-    _validate_uat_scenario_core(
-        key, scenario, leaf_keys, agents, customers, ticket_options
-    )
-    _validate_uat_scenario_tags(key, scenario, tags)
+    _validate_uat_scenario_core(key, scenario, context)
+    _validate_uat_scenario_tags(key, scenario, context.tags)
     _validate_uat_scenario_correlation(key, scenario)
-    _validate_uat_scenario_options(key, scenario, ticket_options)
+    _validate_uat_scenario_options(key, scenario, context.ticket_options)
 
 
 def _validate_uat_scenarios(
     profile_uat: dict[str, Any],
     manifest_uat: dict[str, Any],
-    leaf_keys: set[str],
-    agents: dict[str, dict[str, Any]],
-    customers: dict[str, dict[str, Any]],
-    tags: set[str],
-    ticket_options: dict[str, set[str]],
+    context: _UatValidationContext,
 ) -> dict[str, dict[str, Any]]:
     scenarios = _keyed_items(profile_uat.get("scenarios"), "UAT scenarios")
     if manifest_uat.get("ticket_count") != len(scenarios):
@@ -185,15 +202,7 @@ def _validate_uat_scenarios(
     ):
         _fail("UAT scenario numbers must be positive and unique")
     for key, scenario in scenarios.items():
-        _validate_uat_scenario(
-            key,
-            scenario,
-            leaf_keys,
-            agents,
-            customers,
-            tags,
-            ticket_options,
-        )
+        _validate_uat_scenario(key, scenario, context)
     return scenarios
 
 
@@ -235,20 +244,25 @@ def _validate_uat_seed_coverage(
 
 def _validate_handoff_probe_references(
     handoff: dict[str, Any],
-    scenarios: dict[str, dict[str, Any]],
-    agents: dict[str, dict[str, Any]],
-    leaf_keys: set[str],
-    tags: set[str],
+    references: _UatScenarioReferences,
 ) -> None:
-    if (
-        handoff.get("ticket_key") not in scenarios
-        or handoff.get("agent") not in agents
-        or handoff.get("source_group") not in leaf_keys
-        or handoff.get("target_group") not in leaf_keys
-        or handoff.get("pending_tag") not in tags
-        or handoff.get("recorded_tag") not in tags
-    ):
+    if not _has_known_handoff_probe_references(handoff, references):
         _fail("invalid handoff_probe contract")
+
+
+def _has_known_handoff_probe_references(
+    handoff: dict[str, Any],
+    references: _UatScenarioReferences,
+) -> bool:
+    context = references.context
+    return (
+        handoff.get("ticket_key") in references.scenarios
+        and handoff.get("agent") in context.agents
+        and handoff.get("source_group") in context.leaf_keys
+        and handoff.get("target_group") in context.leaf_keys
+        and handoff.get("pending_tag") in context.tags
+        and handoff.get("recorded_tag") in context.tags
+    )
 
 
 def _validate_handoff_probe_owner(handoff: dict[str, Any]) -> None:
@@ -259,59 +273,59 @@ def _validate_handoff_probe_owner(handoff: dict[str, Any]) -> None:
 def _validate_uat_handoff_probe(
     profile_uat: dict[str, Any],
     scenarios: dict[str, dict[str, Any]],
-    agents: dict[str, dict[str, Any]],
-    leaf_keys: set[str],
-    tags: set[str],
+    context: _UatValidationContext,
 ) -> None:
 
     handoff = profile_uat.get("handoff_probe")
     if handoff is not None:
         _shape(handoff, "handoff_probe", required=HANDOFF_PROBE_FIELDS)
         _validate_handoff_probe_references(
-            handoff, scenarios, agents, leaf_keys, tags
+            handoff, _UatScenarioReferences(scenarios, context)
         )
         _validate_handoff_probe_owner(handoff)
 
 
 def _validate_job_probe_references(
     job_probe: dict[str, Any],
-    scenarios: dict[str, dict[str, Any]],
-    agents: dict[str, dict[str, Any]],
-    jobs: dict[str, dict[str, Any]],
-    tags: set[str],
+    references: _UatScenarioReferences,
 ) -> None:
     if (
-        job_probe.get("ticket_key") not in scenarios
-        or job_probe.get("agent") not in agents
-        or job_probe.get("job_key") not in jobs
-        or job_probe.get("marker_tag") not in tags
+        job_probe.get("ticket_key") not in references.scenarios
+        or job_probe.get("agent") not in references.context.agents
+        or job_probe.get("job_key") not in references.context.jobs
+        or job_probe.get("marker_tag") not in references.context.tags
     ):
         _fail("invalid job_probe contract")
 
 
 def _validate_job_probe_details(job_probe: dict[str, Any]) -> None:
-    if (
-        not isinstance(job_probe.get("subject"), str)
-        or not job_probe["subject"]
-        or job_probe.get("expected_internal_notes").__class__ is not int
-        or job_probe["expected_internal_notes"] < 1
-        or not isinstance(job_probe.get("final_schedule"), str)
-        or not job_probe["final_schedule"]
-    ):
+    if not _has_valid_job_probe_details(job_probe):
         _fail("invalid job_probe contract")
+
+
+def _is_positive_integer(value: Any) -> bool:
+    return value.__class__ is int and value >= 1
+
+
+def _has_valid_job_probe_details(job_probe: dict[str, Any]) -> bool:
+    return (
+        _is_nonempty_string(job_probe.get("subject"))
+        and _is_positive_integer(job_probe.get("expected_internal_notes"))
+        and _is_nonempty_string(job_probe.get("final_schedule"))
+    )
 
 
 def _validate_uat_job_probe(
     profile_uat: dict[str, Any],
     scenarios: dict[str, dict[str, Any]],
-    agents: dict[str, dict[str, Any]],
-    tags: set[str],
-    jobs: dict[str, dict[str, Any]],
+    context: _UatValidationContext,
 ) -> None:
     job_probe = profile_uat.get("job_probe")
     if job_probe is not None:
         _shape(job_probe, "job_probe", required=JOB_PROBE_FIELDS)
-        _validate_job_probe_references(job_probe, scenarios, agents, jobs, tags)
+        _validate_job_probe_references(
+            job_probe, _UatScenarioReferences(scenarios, context)
+        )
         _validate_job_probe_details(job_probe)
 
 
@@ -326,19 +340,19 @@ def _validate_uat(
     ticket_options: dict[str, set[str]],
 ) -> tuple[dict[str, dict[str, Any]], list[str]]:
     profile_uat, manifest_uat = _validate_uat_contracts(profile_uat, manifest_uat)
-    _validate_uat_safety_contract(profile_uat, manifest_uat)
-    _validate_uat_title(profile_uat, manifest_uat)
-    _validate_uat_defaults(profile_uat, ticket_options)
-    scenarios = _validate_uat_scenarios(
-        profile_uat,
-        manifest_uat,
+    context = _UatValidationContext(
         leaf_keys,
         agents,
         customers,
         tags,
+        jobs,
         ticket_options,
     )
+    _validate_uat_safety_contract(profile_uat, manifest_uat)
+    _validate_uat_title(profile_uat, manifest_uat)
+    _validate_uat_defaults(profile_uat, context.ticket_options)
+    scenarios = _validate_uat_scenarios(profile_uat, manifest_uat, context)
     seed_keys = _validate_uat_access_matrix(profile_uat, scenarios)
-    _validate_uat_handoff_probe(profile_uat, scenarios, agents, leaf_keys, tags)
-    _validate_uat_job_probe(profile_uat, scenarios, agents, tags, jobs)
+    _validate_uat_handoff_probe(profile_uat, scenarios, context)
+    _validate_uat_job_probe(profile_uat, scenarios, context)
     return scenarios, seed_keys

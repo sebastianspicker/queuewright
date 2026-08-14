@@ -23,6 +23,14 @@ from .profile_support import (
     _shape,
 )
 
+
+_ORGANIZATION_REQUIRED_FLAGS = (
+    ("active", True),
+    ("shared", False),
+    ("domain_assignment", False),
+)
+
+
 def _validate_identity(
     identity: Any, users: dict[str, Any], profile_key: str
 ) -> None:
@@ -48,16 +56,24 @@ def _validate_identity_login_templates(identity: dict[str, Any], profile_key: st
         _fail("agent and customer login templates must be distinct")
 
 
-def _validate_identity_email_template(identity: dict[str, Any], users: dict[str, Any], profile_key: str) -> None:
+def _has_valid_identity_email_template(
+    identity: dict[str, Any], users: dict[str, Any], profile_key: str
+) -> bool:
     email_template = identity["email_template"]
-    if (
-        not isinstance(email_template, str)
-        or email_template.count("{kind}") != 1
-        or email_template.count("{key}") != 1
-        or not email_template.startswith(f"{profile_key}.")
-        or not email_template.endswith("@example.invalid")
-        or users.get("email_template") != email_template
-    ):
+    return (
+        isinstance(email_template, str)
+        and email_template.count("{kind}") == 1
+        and email_template.count("{key}") == 1
+        and email_template.startswith(f"{profile_key}.")
+        and email_template.endswith("@example.invalid")
+        and users.get("email_template") == email_template
+    )
+
+
+def _validate_identity_email_template(
+    identity: dict[str, Any], users: dict[str, Any], profile_key: str
+) -> None:
+    if not _has_valid_identity_email_template(identity, users, profile_key):
         _fail(
             "identity email_template must match users.email_template, contain "
             "{kind}/{key}, and end in @example.invalid"
@@ -238,18 +254,22 @@ def _validate_organizations(
             f"organization {key}",
             required=ORGANIZATION_FIELDS,
         )
-        if (
-            organization.get("active") is not True
-            or organization.get("shared") is not False
-            or organization.get("domain_assignment") is not False
-            or not isinstance(organization.get("class"), str)
-            or not organization["class"]
-        ):
+        if not _has_valid_organization_contract(organization):
             _fail(
                 f"organization {key} must be active, unshared, "
                 "non-domain-assigned, and classified"
             )
     return organizations
+
+
+def _has_valid_organization_contract(organization: dict[str, Any]) -> bool:
+    if not all(
+        organization.get(field) is expected
+        for field, expected in _ORGANIZATION_REQUIRED_FLAGS
+    ):
+        return False
+    classification = organization.get("class")
+    return isinstance(classification, str) and bool(classification)
 
 
 def _validate_roles(
@@ -306,22 +326,36 @@ def _role_only_constraint_keys(agent_constraints: Any) -> list[str]:
     ]
 
 
-def _validate_user_constraints(users: dict[str, Any]) -> None:
-    agent_constraints = users["agent_constraints"]
-    role_only_keys = _role_only_constraint_keys(agent_constraints)
+def _has_expected_agent_constraint_keys(
+    agent_constraints: dict[str, Any], role_only_keys: list[str]
+) -> bool:
     expected_agent_constraints = {
         "no_admin",
         "no_report_permission",
         "notifications",
         *role_only_keys,
     }
+    return (
+        len(role_only_keys) == 1
+        and set(agent_constraints) == expected_agent_constraints
+    )
+
+
+def _has_required_agent_constraint_values(agent_constraints: dict[str, Any]) -> bool:
+    return (
+        agent_constraints.get("notifications") is False
+        and agent_constraints.get("no_admin") is True
+        and agent_constraints.get("no_report_permission") is True
+    )
+
+
+def _validate_user_constraints(users: dict[str, Any]) -> None:
+    agent_constraints = users["agent_constraints"]
+    role_only_keys = _role_only_constraint_keys(agent_constraints)
     if (
         not isinstance(agent_constraints, dict)
-        or len(role_only_keys) != 1
-        or set(agent_constraints) != expected_agent_constraints
-        or agent_constraints.get("notifications") is not False
-        or agent_constraints.get("no_admin") is not True
-        or agent_constraints.get("no_report_permission") is not True
+        or not _has_expected_agent_constraint_keys(agent_constraints, role_only_keys)
+        or not _has_required_agent_constraint_values(agent_constraints)
     ):
         _fail("agent constraints must enforce one role, no admin/report, and no notifications")
     if users["customer_constraints"] != {
@@ -368,13 +402,20 @@ def _validate_overviews(
             required={"group", "organization"},
             allowed=OVERVIEW_CONDITION_FIELDS,
         )
-        if (
-            conditions.get("group") not in {"H", "S"}
-            or conditions.get("organization") != "O"
-            or overview.get("roles") != "R"
-            or not all(isinstance(value, str) and value for value in conditions.values())
-        ):
+        if not _has_valid_overview_fence(overview, conditions):
             _fail(f"overview {key} must be fenced by H/S, O, and R")
+
+
+def _has_valid_overview_fence(
+    overview: dict[str, Any], conditions: dict[str, Any]
+) -> bool:
+    if conditions.get("group") not in {"H", "S"}:
+        return False
+    if conditions.get("organization") != "O":
+        return False
+    if overview.get("roles") != "R":
+        return False
+    return all(isinstance(value, str) and value for value in conditions.values())
 
 
 def _validate_macro_action(
@@ -419,11 +460,16 @@ def _validate_checklists(
     _managed_names(checklists, "checklist", prefix)
     for key, checklist in checklists.items():
         _shape(checklist, f"checklist {key}", required=CHECKLIST_FIELDS)
-        items = checklist.get("items")
-        if (
-            checklist.get("active") is not False
-            or not isinstance(items, list)
-            or not items
-            or not all(isinstance(item, str) and item.strip() for item in items)
-        ):
+        if not _has_valid_checklist_contract(checklist):
             _fail(f"checklist {key} must remain inactive with non-empty items")
+
+
+def _has_valid_checklist_contract(checklist: dict[str, Any]) -> bool:
+    if checklist.get("active") is not False:
+        return False
+    items = checklist.get("items")
+    if not isinstance(items, list):
+        return False
+    if not items:
+        return False
+    return all(isinstance(item, str) and item.strip() for item in items)

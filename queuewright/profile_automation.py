@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NamedTuple
 
 from .profile_support import (
     ALLOWED_AUTOMATION_ACTIONS,
@@ -21,6 +21,14 @@ from .profile_support import (
     _managed_names,
     _shape,
 )
+
+
+class _PresentationValidationContext(NamedTuple):
+    field_names: set[str]
+    option_values: set[str]
+    workflows: dict[str, dict[str, Any]]
+    prefix: str
+
 
 def _validate_automation_item_shape(
     item: dict[str, Any], label: str, key: str
@@ -118,16 +126,26 @@ def _validate_automation_optional_text(
             _fail(f"{label} {key} {optional_text} must be non-empty text")
 
 
-def _validate_job_automation(item: dict[str, Any], key: str) -> None:
-    forbidden = item.get("forbidden_actions")
-    if (
-        not isinstance(forbidden, list)
-        or not all(isinstance(value, str) for value in forbidden)
-        or not FORBIDDEN_ACTIONS.issubset(set(forbidden))
-        or not isinstance(item.get("schedule"), str)
-        or not item["schedule"]
-    ):
+def _validate_job_forbidden_actions(forbidden: Any, key: str) -> None:
+    if not isinstance(forbidden, list):
         _fail(f"job {key} must declare schedule and all forbidden actions")
+    for action in forbidden:
+        if not isinstance(action, str):
+            _fail(f"job {key} must declare schedule and all forbidden actions")
+    if not FORBIDDEN_ACTIONS.issubset(set(forbidden)):
+        _fail(f"job {key} must declare schedule and all forbidden actions")
+
+
+def _validate_job_schedule(item: dict[str, Any], key: str) -> None:
+    if not isinstance(item.get("schedule"), str):
+        _fail(f"job {key} must declare schedule and all forbidden actions")
+    if not item["schedule"]:
+        _fail(f"job {key} must declare schedule and all forbidden actions")
+
+
+def _validate_job_automation(item: dict[str, Any], key: str) -> None:
+    _validate_job_forbidden_actions(item.get("forbidden_actions"), key)
+    _validate_job_schedule(item, key)
 
 
 def _validate_automation_item(
@@ -183,20 +201,28 @@ def _validate_object_manager_text_metadata(object_manager: dict[str, Any]) -> No
             _fail(f"object_manager.{text_field} must be non-empty text")
 
 
-def _validate_object_manager_boolean_metadata(object_manager: dict[str, Any]) -> None:
-    if (
-        "restart_required" in object_manager
-        and object_manager["restart_required"].__class__ is not bool
-    ):
+def _validate_restart_required(object_manager: dict[str, Any]) -> None:
+    if "restart_required" not in object_manager:
+        return
+    if object_manager["restart_required"].__class__ is not bool:
         _fail("object_manager.restart_required must be boolean")
-    if "implementation_sequence" in object_manager and (
-        not isinstance(object_manager["implementation_sequence"], list)
-        or not all(
-            isinstance(value, str) and value.strip()
-            for value in object_manager["implementation_sequence"]
-        )
-    ):
+
+
+def _validate_implementation_sequence(object_manager: dict[str, Any]) -> None:
+    if "implementation_sequence" not in object_manager:
+        return
+    if not isinstance(object_manager["implementation_sequence"], list):
         _fail("object_manager.implementation_sequence must be a string list")
+    for value in object_manager["implementation_sequence"]:
+        if not isinstance(value, str):
+            _fail("object_manager.implementation_sequence must be a string list")
+        if not value.strip():
+            _fail("object_manager.implementation_sequence must be a string list")
+
+
+def _validate_object_manager_boolean_metadata(object_manager: dict[str, Any]) -> None:
+    _validate_restart_required(object_manager)
+    _validate_implementation_sequence(object_manager)
 
 
 def _validate_object_manager_metadata(object_manager: dict[str, Any]) -> None:
@@ -225,12 +251,16 @@ def _object_field_name(
 
 def _object_field_options(field: dict[str, Any], name: str) -> list[str]:
     options = field.get("options")
-    if (
-        not isinstance(options, list)
-        or not options
-        or not all(isinstance(option, str) and option for option in options)
-        or len(options) != len(set(options))
-    ):
+    if not isinstance(options, list):
+        _fail(f"object manager options must be unique strings: {name}")
+    if not options:
+        _fail(f"object manager options must be unique strings: {name}")
+    for option in options:
+        if not isinstance(option, str):
+            _fail(f"object manager options must be unique strings: {name}")
+        if not option:
+            _fail(f"object manager options must be unique strings: {name}")
+    if len(options) != len(set(options)):
         _fail(f"object manager options must be unique strings: {name}")
     return options
 
@@ -287,71 +317,125 @@ def _validate_object_manager_tenant_default(object_manager: dict[str, Any]) -> N
         required={"default", "hidden", "optional"},
         allowed={"default", "hidden", "no_date_or_datetime", "optional"},
     )
-    if (
-        tenant_default.get("hidden") is not True
-        or tenant_default.get("optional") is not True
-        or tenant_default.get("default", object()) is not None
-        or tenant_default.get("no_date_or_datetime", True) is not True
-    ):
+    _validate_tenant_default_hidden(tenant_default)
+    _validate_tenant_default_optional(tenant_default)
+    _validate_tenant_default_value(tenant_default)
+    _validate_tenant_default_date_restriction(tenant_default)
+
+
+def _validate_tenant_default_hidden(tenant_default: dict[str, Any]) -> None:
+    if tenant_default.get("hidden") is not True:
         _fail("tenant defaults must be hidden, optional, null, and date-free")
+
+
+def _validate_tenant_default_optional(tenant_default: dict[str, Any]) -> None:
+    if tenant_default.get("optional") is not True:
+        _fail("tenant defaults must be hidden, optional, null, and date-free")
+
+
+def _validate_tenant_default_value(tenant_default: dict[str, Any]) -> None:
+    if tenant_default.get("default", object()) is not None:
+        _fail("tenant defaults must be hidden, optional, null, and date-free")
+
+
+def _validate_tenant_default_date_restriction(tenant_default: dict[str, Any]) -> None:
+    if tenant_default.get("no_date_or_datetime", True) is not True:
+        _fail("tenant defaults must be hidden, optional, null, and date-free")
+
+
+def _validate_core_workflow_context(workflow: dict[str, Any], key: str) -> None:
+    if workflow.get("context") not in {
+        "agent_create",
+        "agent_edit",
+        "customer_create",
+    }:
+        _fail(f"core workflow {key} has an invalid declarative contract")
+
+
+def _validate_core_workflow_match(workflow: dict[str, Any], key: str) -> None:
+    if not isinstance(workflow.get("match"), str):
+        _fail(f"core workflow {key} has an invalid declarative contract")
+    if not workflow["match"]:
+        _fail(f"core workflow {key} has an invalid declarative contract")
+
+
+def _validate_core_workflow_actions(workflow: dict[str, Any], key: str) -> None:
+    if not isinstance(workflow.get("actions"), str):
+        _fail(f"core workflow {key} has an invalid declarative contract")
+    if not workflow["actions"]:
+        _fail(f"core workflow {key} has an invalid declarative contract")
 
 
 def _validate_core_workflows(object_manager: dict[str, Any]) -> dict[str, dict[str, Any]]:
     workflows = _keyed_items(object_manager["core_workflows"], "core workflows")
     for key, workflow in workflows.items():
         _shape(workflow, f"core workflow {key}", required=WORKFLOW_FIELDS)
-        if (
-            workflow.get("context")
-            not in {"agent_create", "agent_edit", "customer_create"}
-            or not isinstance(workflow.get("match"), str)
-            or not workflow["match"]
-            or not isinstance(workflow.get("actions"), str)
-            or not workflow["actions"]
-        ):
-            _fail(f"core workflow {key} has an invalid declarative contract")
+        _validate_core_workflow_context(workflow, key)
+        _validate_core_workflow_match(workflow, key)
+        _validate_core_workflow_actions(workflow, key)
     return workflows
+
+
+def _validate_presentation_map(mapping: Any, name: str) -> None:
+    if not isinstance(mapping, dict):
+        _fail(f"presentation {name} must be a non-empty-string map")
+    for key, value in mapping.items():
+        if not isinstance(key, str):
+            _fail(f"presentation {name} must be a non-empty-string map")
+        if not isinstance(value, str):
+            _fail(f"presentation {name} must be a non-empty-string map")
+        if not value.strip():
+            _fail(f"presentation {name} must be a non-empty-string map")
 
 
 def _validate_presentation_maps(presentation: dict[str, Any]) -> None:
     for name in ("field_labels", "option_labels", "core_workflow_names"):
-        mapping = presentation[name]
-        if not isinstance(mapping, dict) or not all(
-            isinstance(key, str) and isinstance(value, str) and value.strip()
-            for key, value in mapping.items()
-        ):
-            _fail(f"presentation {name} must be a non-empty-string map")
+        _validate_presentation_map(presentation[name], name)
 
 
 def _validate_presentation_coverage(
     presentation: dict[str, Any],
-    field_names: set[str],
-    option_values: set[str],
-    workflows: dict[str, dict[str, Any]],
-    prefix: str,
+    context: _PresentationValidationContext,
 ) -> None:
-    if set(presentation["field_labels"]) != field_names:
+    if set(presentation["field_labels"]) != context.field_names:
         _fail("field labels must cover object manager fields exactly")
-    if set(presentation["option_labels"]) != option_values:
+    if set(presentation["option_labels"]) != context.option_values:
         _fail("option labels must cover object manager options exactly")
-    if set(presentation["core_workflow_names"]) != set(workflows):
+    if set(presentation["core_workflow_names"]) != set(context.workflows):
         _fail("workflow names must cover core workflows exactly")
     if any(
-        not name.startswith(prefix)
+        not name.startswith(context.prefix)
         for name in presentation["core_workflow_names"].values()
     ):
         _fail("core workflow names must start with managed_prefix")
 
 
-def _validate_object_manager_position(object_name: str, position: Any) -> None:
-    if (
-        not isinstance(position, dict)
-        or set(position) != {"start", "step"}
-        or not all(
-            position[key].__class__ is int and position[key] > 0
-            for key in ("start", "step")
-        )
-    ):
+def _validate_object_manager_position_shape(object_name: str, position: Any) -> None:
+    if not isinstance(position, dict):
         _fail(f"object manager position for {object_name} is invalid")
+
+
+def _validate_object_manager_position_keys(
+    object_name: str, position: dict[str, Any]
+) -> None:
+    if set(position) != {"start", "step"}:
+        _fail(f"object manager position for {object_name} is invalid")
+
+
+def _validate_object_manager_position_values(
+    object_name: str, position: dict[str, Any]
+) -> None:
+    for key in ("start", "step"):
+        if position[key].__class__ is not int:
+            _fail(f"object manager position for {object_name} is invalid")
+        if not position[key] > 0:
+            _fail(f"object manager position for {object_name} is invalid")
+
+
+def _validate_object_manager_position(object_name: str, position: Any) -> None:
+    _validate_object_manager_position_shape(object_name, position)
+    _validate_object_manager_position_keys(object_name, position)
+    _validate_object_manager_position_values(object_name, position)
 
 
 def _validate_object_manager_positions(presentation: dict[str, Any]) -> None:
@@ -367,17 +451,12 @@ def _validate_object_manager_positions(presentation: dict[str, Any]) -> None:
 
 def _validate_object_manager_presentation(
     presentation: Any,
-    field_names: set[str],
-    option_values: set[str],
-    workflows: dict[str, dict[str, Any]],
-    prefix: str,
+    context: _PresentationValidationContext,
 ) -> None:
     if not isinstance(presentation, dict) or set(presentation) != PRESENTATION_FIELDS:
         _fail("presentation must contain exactly the required fields")
     _validate_presentation_maps(presentation)
-    _validate_presentation_coverage(
-        presentation, field_names, option_values, workflows, prefix
-    )
+    _validate_presentation_coverage(presentation, context)
     _validate_object_manager_positions(presentation)
 
 
@@ -407,7 +486,8 @@ def _validate_object_manager(
     )
     _validate_object_manager_tenant_default(object_manager)
     workflows = _validate_core_workflows(object_manager)
-    _validate_object_manager_presentation(
-        presentation, field_names, option_values, workflows, prefix
+    presentation_context = _PresentationValidationContext(
+        field_names, option_values, workflows, prefix
     )
+    _validate_object_manager_presentation(presentation, presentation_context)
     return ticket_options

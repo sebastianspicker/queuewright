@@ -63,22 +63,44 @@ export async function importValues(
 ): Promise<void> {
   const blueprint = values.map(blueprintValue).find(Boolean)
   if (blueprint) {
-    const compiled = await api.compileBlueprint(blueprint)
-    const result = await api.compile(projectFromBlueprint(compiled.project))
-    onReplace([result.project, compiled.project])
+    await importBlueprint(blueprint, onReplace)
     return
   }
   const project = values.map(projectValue).find(Boolean)
   if (project) {
-    const result = await api.compile(project)
-    onReplace([result.project, await api.migrateProject(result.project)])
+    await compileMigrateAndReplace(project, onReplace)
     return
   }
   const bundle = findBundle(values)
   if (!bundle) throw new Error('A profile and desired-state manifest are both required.')
-  const imported = await api.importBundle(bundle.profile, bundle.manifest)
-  const result = await api.compile(imported)
-  onReplace([result.project, await api.migrateProject(result.project)])
+  await importProfileAndManifest(bundle.profile, bundle.manifest, onReplace)
+}
+
+async function importBlueprint(
+  blueprint: StudioProjectV2,
+  onReplace: ReplaceStudio,
+): Promise<void> {
+  const compiled = await api.compileBlueprint(blueprint)
+  const result = await api.compile(projectFromBlueprint(compiled.project))
+  onReplace([result.project, compiled.project])
+}
+
+async function importProfileAndManifest(
+  profile: ProfileDocument,
+  manifest: ManifestDocument,
+  onReplace: ReplaceStudio,
+): Promise<void> {
+  const project = await api.importBundle(profile, manifest)
+  await compileMigrateAndReplace(project, onReplace)
+}
+
+async function compileMigrateAndReplace(
+  project: StudioProject,
+  onReplace: ReplaceStudio,
+): Promise<void> {
+  const result = await api.compile(project)
+  const blueprint = await api.migrateProject(result.project)
+  onReplace([result.project, blueprint])
 }
 
 export async function importFilesIntoStudio(

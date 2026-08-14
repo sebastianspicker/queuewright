@@ -8,6 +8,13 @@ token_full
 .env
 .env.*
 !.env.example
+!.env.*.example
+!.env.sample
+!.env.template
+secrets.local.*
+credentials.local.*
+.netrc
+.npmrc.local
 .npmrc
 .pypirc
 .netrc
@@ -15,6 +22,11 @@ token_full
 *.key
 *.p12
 *.pfx
+*.jks
+*.keystore
+*.kdbx
+*.ppk
+*.mobileprovision
 id_rsa*
 id_ed25519*
 credentials*.json
@@ -27,6 +39,10 @@ credentials*.json
 .serena/
 **/.serena/
 .codex/
+.codacy/
+.kilo/
+.repowise/
+.codegraph/
 **/.codex/
 .agents/
 **/.agents/
@@ -45,6 +61,13 @@ credentials*.json
 /highend-2026-*.json
 
 # --- OS / editor ---
+/AGENTS.md
+/CLAUDE.md
+/GEMINI.md
+/AUDIT_LEDGER.md
+/remediation-ledger.md
+/plan.md
+/progress.md
 .DS_Store
 **/.DS_Store
 Thumbs.db
@@ -70,12 +93,19 @@ venv/
 # --- Build / coverage ---
 dist/
 build/
+.build/
+target/
+DerivedData/
+xcuserdata/
 node_modules/
 .npm/
 .vite/
 *.tsbuildinfo
 playwright-report/
 test-results/
+blob-report/
+junit*.xml
+*.sarif
 *.egg-info/
 coverage/
 .coverage
@@ -86,6 +116,15 @@ htmlcov/
 *.sqlite
 *.sqlite3
 *.db
+*.db-shm
+*.db-wal
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3-shm
+*.sqlite3-wal
+*.local.db
+*.local.sqlite
+*.local.sqlite3
 
 # --- Optional local exports (API dumps) ---
 exports/

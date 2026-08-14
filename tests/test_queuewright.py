@@ -13,6 +13,7 @@ from typing import Any
 from unittest import mock
 
 import queuewright.compiler as compiler_module
+import queuewright.profile_automation as profile_automation
 from queuewright.cli import main
 from queuewright.compiler import compile_plan
 from queuewright.errors import ConfigurationError
@@ -22,6 +23,17 @@ from queuewright.profile import load_profile, validate_profile
 ROOT = Path(__file__).resolve().parents[1]
 LEGACY_FIXTURE_PLAN_HASH = (
     "77ccef1e3ab8877f83668dadbfc3fe74addd7e5209069f55fb3ecc65f34ff395"
+)
+_CORE_WORKFLOW_CONTRACT_ERROR = (
+    "core workflow agent_create_shared has an invalid declarative contract"
+)
+_CORE_WORKFLOW_MISSING_FIELDS = ("context", "match", "actions")
+_CORE_WORKFLOW_INVALID_VALUES = (
+    ("invalid context", "context", "agent_delete"),
+    ("non-string match", "match", None),
+    ("empty match", "match", ""),
+    ("non-string actions", "actions", None),
+    ("empty actions", "actions", ""),
 )
 
 
@@ -275,6 +287,28 @@ class QueuewrightTests(unittest.TestCase):
     ) -> None:
         with self.assertRaisesRegex(ConfigurationError, pattern):
             validate_profile(self.write_bundle(profile, manifest))
+
+    def assert_exact_invalid(
+        self,
+        profile: dict[str, Any],
+        manifest: dict[str, Any],
+        expected: str,
+    ) -> None:
+        with self.assertRaises(ConfigurationError) as raised:
+            validate_profile(self.write_bundle(profile, manifest))
+        self.assertEqual(str(raised.exception), expected)
+
+    def assert_trace_failure(
+        self,
+        validation: Any,
+        traced_value: Any,
+        expected: tuple[str, list[str]],
+    ) -> None:
+        with self.assertRaises(ConfigurationError) as raised:
+            validation()
+        expected_error, expected_accesses = expected
+        self.assertEqual(str(raised.exception), expected_error)
+        self.assertEqual(traced_value.accesses, expected_accesses)
 
     def test_variable_cardinality_is_derived(self) -> None:
         profile, manifest = fixture_bundle(agent_count=4, scenario_count=6)
@@ -569,6 +603,263 @@ class QueuewrightTests(unittest.TestCase):
         profile, manifest = fixture_bundle()
         profile["uat"]["scenarios"][0]["type"] = {}
         self.assert_invalid(profile, manifest, "invalid UAT option override type")
+
+    def test_job_automation_contract_rejects_each_invalid_operand(self) -> None:
+        required_actions = [
+            "ai",
+            "close",
+            "delete",
+            "group_move",
+            "mail",
+            "owner_change",
+            "public_article",
+            "webhook",
+        ]
+
+        def missing_forbidden_actions(job: dict[str, Any]) -> None:
+            del job["forbidden_actions"]
+
+        def non_list_forbidden_actions(job: dict[str, Any]) -> None:
+            job["forbidden_actions"] = {"actions": required_actions}
+
+        def non_string_forbidden_action(job: dict[str, Any]) -> None:
+            job["forbidden_actions"] = [*required_actions[:-1], 1]
+
+        def incomplete_forbidden_actions(job: dict[str, Any]) -> None:
+            job["forbidden_actions"] = required_actions[:-1]
+
+        def missing_schedule(job: dict[str, Any]) -> None:
+            del job["schedule"]
+
+        def non_string_schedule(job: dict[str, Any]) -> None:
+            job["schedule"] = 7
+
+        def empty_schedule(job: dict[str, Any]) -> None:
+            job["schedule"] = ""
+
+        cases = (
+            (
+                "missing forbidden actions",
+                missing_forbidden_actions,
+                "job review misses required field: forbidden_actions",
+            ),
+            (
+                "non-list forbidden actions",
+                non_list_forbidden_actions,
+                "job review must declare schedule and all forbidden actions",
+            ),
+            (
+                "non-string forbidden action",
+                non_string_forbidden_action,
+                "job review must declare schedule and all forbidden actions",
+            ),
+            (
+                "incomplete forbidden actions",
+                incomplete_forbidden_actions,
+                "job review must declare schedule and all forbidden actions",
+            ),
+            (
+                "missing schedule",
+                missing_schedule,
+                "job review misses required field: schedule",
+            ),
+            (
+                "non-string schedule",
+                non_string_schedule,
+                "job review must declare schedule and all forbidden actions",
+            ),
+            (
+                "empty schedule",
+                empty_schedule,
+                "job review must declare schedule and all forbidden actions",
+            ),
+        )
+        for label, mutate, expected in cases:
+            with self.subTest(label=label):
+                profile, manifest = fixture_bundle()
+                mutate(manifest["jobs"][0])
+                self.assert_exact_invalid(profile, manifest, expected)
+
+        profile, manifest = fixture_bundle()
+        manifest["jobs"][0]["schedule"] = " "
+        self.assertEqual(validate_profile(self.write_bundle(profile, manifest))["counts"]["jobs"], 1)
+
+    def test_object_field_options_reject_each_invalid_operand(self) -> None:
+        def missing_options(field: dict[str, Any]) -> None:
+            del field["options"]
+
+        def non_list_options(field: dict[str, Any]) -> None:
+            field["options"] = {"options": ["a", "b"]}
+
+        def empty_options(field: dict[str, Any]) -> None:
+            field["options"] = []
+
+        def non_string_option(field: dict[str, Any]) -> None:
+            field["options"] = ["a", 1]
+
+        def empty_string_option(field: dict[str, Any]) -> None:
+            field["options"] = ["a", ""]
+
+        def duplicate_option(field: dict[str, Any]) -> None:
+            field["options"] = ["a", "a"]
+
+        cases = (
+            (
+                "missing options",
+                missing_options,
+                "object_manager.ticket_fields field misses required field: options",
+            ),
+            (
+                "non-list options",
+                non_list_options,
+                "object manager options must be unique strings: example_type",
+            ),
+            (
+                "empty options",
+                empty_options,
+                "object manager options must be unique strings: example_type",
+            ),
+            (
+                "non-string option",
+                non_string_option,
+                "object manager options must be unique strings: example_type",
+            ),
+            (
+                "empty string option",
+                empty_string_option,
+                "object manager options must be unique strings: example_type",
+            ),
+            (
+                "duplicate option",
+                duplicate_option,
+                "object manager options must be unique strings: example_type",
+            ),
+        )
+        for label, mutate, expected in cases:
+            with self.subTest(label=label):
+                profile, manifest = fixture_bundle()
+                mutate(manifest["object_manager"]["ticket_fields"][0])
+                self.assert_exact_invalid(profile, manifest, expected)
+
+        profile, manifest = fixture_bundle()
+        manifest["object_manager"]["ticket_fields"][0]["options"] = [" "]
+        profile["presentation"]["option_labels"] = {" ": "Space"}
+        self.assertEqual(
+            validate_profile(self.write_bundle(profile, manifest))["counts"]["object_manager_fields"],
+            1,
+        )
+
+    def _assert_core_workflow_missing_fields(self) -> None:
+        for field in _CORE_WORKFLOW_MISSING_FIELDS:
+            with self.subTest(field=field):
+                profile, manifest = fixture_bundle()
+                del manifest["object_manager"]["core_workflows"][0][field]
+                self.assert_exact_invalid(
+                    profile,
+                    manifest,
+                    f"core workflow agent_create_shared misses required field: {field}",
+                )
+
+    def _assert_core_workflow_invalid_values(self) -> None:
+        for label, field, value in _CORE_WORKFLOW_INVALID_VALUES:
+            with self.subTest(label=label):
+                profile, manifest = fixture_bundle()
+                manifest["object_manager"]["core_workflows"][0][field] = value
+                self.assert_exact_invalid(profile, manifest, _CORE_WORKFLOW_CONTRACT_ERROR)
+
+    def _assert_core_workflow_accepted_text(self) -> None:
+        for context in ("agent_edit", "customer_create"):
+            with self.subTest(context=context):
+                profile, manifest = fixture_bundle()
+                workflow = manifest["object_manager"]["core_workflows"][0]
+                workflow["context"] = context
+                workflow["match"] = " "
+                workflow["actions"] = " "
+                self.assertEqual(
+                    validate_profile(self.write_bundle(profile, manifest))["counts"]["core_workflows"],
+                    1,
+                )
+
+    def test_core_workflow_contract_rejects_each_invalid_operand(self) -> None:
+        self._assert_core_workflow_missing_fields()
+        self._assert_core_workflow_invalid_values()
+        self._assert_core_workflow_accepted_text()
+
+    def test_job_automation_checks_forbidden_actions_before_schedule(self) -> None:
+        class TrackingJob(dict[str, Any]):
+            def __init__(self, value: dict[str, Any]) -> None:
+                super().__init__(value)
+                self.accesses: list[str] = []
+
+            def get(self, key: str, default: Any = None) -> Any:
+                self.accesses.append(key)
+                return super().get(key, default)
+
+        job = TrackingJob({"forbidden_actions": ["ai"], "schedule": 7})
+        self.assert_trace_failure(
+            lambda: profile_automation._validate_job_automation(job, "review"),
+            job,
+            (
+                "job review must declare schedule and all forbidden actions",
+                ["forbidden_actions"],
+            ),
+        )
+
+    def test_core_workflow_checks_context_match_and_actions_in_order(self) -> None:
+        class TrackingWorkflow(dict[str, Any]):
+            def __init__(self, value: dict[str, Any]) -> None:
+                super().__init__(value)
+                self.accesses: list[str] = []
+
+            def get(self, key: str, default: Any = None) -> Any:
+                self.accesses.append(key)
+                return super().get(key, default)
+
+        cases = (
+            (
+                "context",
+                {
+                    "actions": None,
+                    "context": "agent_delete",
+                    "key": "workflow",
+                    "match": None,
+                },
+                ["key", "context"],
+            ),
+            (
+                "match",
+                {
+                    "actions": None,
+                    "context": "agent_create",
+                    "key": "workflow",
+                    "match": None,
+                },
+                ["key", "context", "match"],
+            ),
+            (
+                "actions",
+                {
+                    "actions": None,
+                    "context": "agent_create",
+                    "key": "workflow",
+                    "match": "match",
+                },
+                ["key", "context", "match", "actions"],
+            ),
+        )
+        for label, value, expected_accesses in cases:
+            with self.subTest(label=label):
+                workflow = TrackingWorkflow(value)
+                self.assert_trace_failure(
+                    lambda: profile_automation._validate_core_workflows(
+                        {"core_workflows": [workflow]}
+                    ),
+                    workflow,
+                    (
+                        "core workflow workflow has an invalid declarative contract",
+                        expected_accesses,
+                    ),
+                )
 
     def test_profile_path_and_output_are_protected(self) -> None:
         profile, manifest = fixture_bundle()

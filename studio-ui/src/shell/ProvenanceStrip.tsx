@@ -8,7 +8,7 @@ function openDecisionCount(blueprint: ReturnType<typeof useStudio>['blueprint'])
 }
 
 export function ProvenanceStrip() {
-  const { revision, blueprintResult, blueprint } = useStudio()
+  const { revision, blueprintResult, blueprint, demoMode } = useStudio()
   const graphHash = blueprintResult?.graph.graph_hash
   const hashLabel = graphHash?.slice(0, 12) ?? 'awaiting'
   const openDecisions = openDecisionCount(blueprint)
@@ -17,7 +17,7 @@ export function ProvenanceStrip() {
     <div className="provenance" aria-label="Design provenance">
       <span className="chip local">
         <span className="dot" aria-hidden="true" />
-        Local design only
+        {demoMode ? 'Static demo · every action is simulated' : 'Local design only'}
       </span>
       <span className="prov-item">
         <span className="chip neutral">Not connected to a tenant</span>
@@ -38,7 +38,7 @@ export function ProvenanceStrip() {
       ) : null}
       <span className="prov-spacer" />
       <span className="prov-hint">
-        Drafts stay in this browser · <em>design-ready ≠ applied</em>
+        {demoMode ? <>Fixture changes reset on reload · <em>nothing is validated or applied</em></> : <>Drafts stay in this browser · <em>design-ready ≠ applied</em></>}
       </span>
     </div>
   )

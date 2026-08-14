@@ -7,9 +7,10 @@ import secrets
 import time
 from typing import Any, Callable, Mapping, Sequence
 
+from .connection_identity import _IdentityVerifier
 from .models import (
     Capability, CapabilityDiscovery, Connection, ControlError, EphemeralCredential,
-    Preview, SAFE_KEY, _canonical_origin, _validate_addresses,
+    Preview, _canonical_origin, _validate_addresses,
 )
 
 class ControlConnectionMixin:
@@ -23,10 +24,13 @@ class ControlConnectionMixin:
     ) -> Connection:
         canonical_origin, host = _canonical_origin(origin)
         pinned = self._resolved_addresses(host, allow_private_origin)
+        verifier = _IdentityVerifier(
+            canonical_origin, host, pinned, allow_private_origin
+        )
         credential = EphemeralCredential(token, time.time() + credential_ttl_seconds)
         try:
             identity = self.transport("identity", origin=canonical_origin, pinned_addresses=pinned, redirects=False, credential=credential)
-            claims, permissions = self._validated_identity(identity, canonical_origin, host, pinned, allow_private_origin)
+            claims, permissions = verifier._validated_identity(identity)
         except Exception:
             credential.close()
             raise
@@ -61,81 +65,6 @@ class ControlConnectionMixin:
                 "a DNS-only resolver is required before identity transport",
             )
         return _validate_addresses(host, resolved, allow_private_origin)
-
-    @staticmethod
-    def _validated_identity(identity: Any, canonical_origin: str, host: str, pinned: tuple[str, ...], allow_private_origin: bool) -> tuple[tuple[str, str, str], list[str]]:
-        ControlConnectionMixin._require_identity_shape(identity)
-        ControlConnectionMixin._require_identity_binding(identity, canonical_origin, host, pinned, allow_private_origin)
-        permissions = ControlConnectionMixin._identity_permissions(identity)
-        return ControlConnectionMixin._identity_claims(identity), permissions
-
-    @staticmethod
-    def _require_identity_shape(identity: Any) -> None:
-        required = {
-                "canonical_origin",
-                "tenant_fingerprint",
-                "actor",
-                "permissions",
-                "version",
-                "resolved_addresses",
-                "redirected",
-            }
-        if not isinstance(identity, Mapping) or set(identity) != required:
-            raise ControlError(
-                    "identity_invalid", "/connection", "identity response shape is invalid"
-            )
-
-    @staticmethod
-    def _require_identity_binding(identity: Mapping[str, Any], canonical_origin: str, host: str, pinned: tuple[str, ...], allow_private_origin: bool) -> None:
-        if (
-            identity["canonical_origin"] != canonical_origin
-                or identity["redirected"] is not False
-        ):
-            raise ControlError(
-                    "identity_invalid",
-                    "/connection/origin",
-                    "redirected or off-origin identity response is forbidden",
-            )
-        identity_addresses = _validate_addresses(
-            host, identity["resolved_addresses"], allow_private_origin
-        )
-        if identity_addresses != pinned:
-            raise ControlError(
-                    "identity_invalid",
-                    "/connection/resolved_addresses",
-                    "identity transport did not use the pinned address set",
-            )
-
-    @staticmethod
-    def _identity_permissions(identity: Mapping[str, Any]) -> list[str]:
-        permissions = identity["permissions"]
-        if (
-            not isinstance(permissions, list)
-                or not all(
-                    isinstance(item, str) and SAFE_KEY.fullmatch(item)
-                    for item in permissions
-                )
-                or "admin" in permissions
-        ):
-            raise ControlError(
-                    "identity_invalid",
-                    "/connection/permissions",
-                    "permissions are invalid",
-            )
-        return permissions
-
-
-    @staticmethod
-    def _identity_claims(identity: Mapping[str, Any]) -> tuple[str, str, str]:
-        claims = [
-                identity[field]
-                for field in ("tenant_fingerprint", "actor", "version")
-        ]
-        if not all(isinstance(value, str) and value for value in claims):
-            raise ControlError(
-                    "identity_invalid", "/connection", "identity claims are incomplete"
-            )
-        return (str(claims[0]), str(claims[1]), str(claims[2]))
 
     def disconnect(self) -> None:
         if self._credential:
@@ -185,13 +114,35 @@ class ControlConnectionMixin:
             raise ControlError("run_invalid", "/runs", "run is not recoverable", run_id)
 
     def _require_resumable_preview(self, preview: Preview, run: Mapping[str, Any], connection: Connection, run_id: str) -> None:
-        if (
-            preview.tenant_fingerprint != connection.tenant_fingerprint
-            or preview.actor != connection.actor
-            or preview.permissions != connection.permissions
-            or preview.policy_hash != self.policy.digest
-            or preview.project_id != run["project_id"]
-        ):
+        if preview.tenant_fingerprint != connection.tenant_fingerprint:
+            raise ControlError(
+                "run_invalid",
+                "/runs",
+                "stored run does not match the current tenant, actor, permissions, or policy",
+                run_id,
+            )
+        if preview.actor != connection.actor:
+            raise ControlError(
+                "run_invalid",
+                "/runs",
+                "stored run does not match the current tenant, actor, permissions, or policy",
+                run_id,
+            )
+        if preview.permissions != connection.permissions:
+            raise ControlError(
+                "run_invalid",
+                "/runs",
+                "stored run does not match the current tenant, actor, permissions, or policy",
+                run_id,
+            )
+        if preview.policy_hash != self.policy.digest:
+            raise ControlError(
+                "run_invalid",
+                "/runs",
+                "stored run does not match the current tenant, actor, permissions, or policy",
+                run_id,
+            )
+        if preview.project_id != run["project_id"]:
             raise ControlError(
                 "run_invalid",
                 "/runs",

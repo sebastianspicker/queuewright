@@ -9,6 +9,14 @@ Queuewright does not connect to Zammad, read credentials, inspect a tenant, or
 apply configuration. Plans, graphs, and `ready` states are local design
 artifacts.
 
+## Static demo
+
+Explore the [Queuewright Studio static demo](https://sebastianspicker.github.io/queuewright/).
+It uses the real Studio interface and bundled fictional university fixture.
+Every command-capable action is marked as simulated. The demo does not call the
+loopback compiler, validate a configuration, create exports, persist changes,
+or connect to a tenant.
+
 Version `0.1.0-alpha.1` is an unpublished source-release candidate. File
 formats and Studio workflows may change before `1.0.0`.
 
@@ -32,8 +40,8 @@ Not implemented:
 - a Zammad HTTP adapter;
 - tenant changes or rollback commands exposed to users;
 - credential storage or environment-based connection discovery;
-- a hosted application, Python package, container image, or deployment
-  manifest;
+- a hosted operational application, Python package, container image, or
+  operational deployment manifest;
 - compatibility guarantees before `1.0.0`.
 
 The connected-control package is not imported by the CLI or Studio. See
@@ -54,8 +62,8 @@ The offline CLI and Studio service use the Python standard library. The pinned
 
 ## Installation
 
-Queuewright runs from a source checkout. There is no `pyproject.toml`, wheel,
-or installed console command.
+Queuewright runs from a source checkout. Its `pyproject.toml` provides project
+metadata and Ruff configuration; there is no wheel or installed console command.
 
 For the offline CLI and Studio service, run commands from the repository root.
 No Python dependency installation is required.
@@ -224,6 +232,7 @@ Run the frontend checks from `studio-ui/` after `npm ci`:
 ```bash
 npm run test
 npm run build
+npm run build:demo
 npm run test:e2e
 ```
 
@@ -246,9 +255,13 @@ Current release-gate results and unresolved checks are recorded in
 
 ## Operation and deployment
 
-Queuewright supports local source-checkout operation only. The repository does
-not contain a production server, container definition, service unit, hosted
-deployment configuration, or package publication workflow.
+Queuewright supports local source-checkout operation only. It has no hosted
+operational service, container definition, service unit, or package publication
+workflow. The GitHub Pages workflow builds a separate static demo with
+`npm run build:demo` and publishes `studio-ui/dist` under `/queuewright/`.
+That demo uses bundled fictional data and simulated actions; it does not host
+the Python service or provide local compilation, validation, exports, or
+persistence.
 
 Do not expose ports `5173` or `8765` on a network interface. The service
 constructor rejects non-loopback binding, and Vite is configured for

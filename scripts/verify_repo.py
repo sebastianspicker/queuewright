@@ -18,11 +18,13 @@ STUDIO_CATALOG = ROOT / "studio/catalog/features.json"
 STUDIO_CAPABILITY_CATALOG = ROOT / "studio/catalog/capabilities.json"
 STUDIO_PACKAGE = ROOT / "studio-ui/package.json"
 STUDIO_LOCK = ROOT / "studio-ui/package-lock.json"
+STUDIO_HTML = ROOT / "studio-ui/index.html"
 STUDIO_API = ROOT / "studio-ui/src/api.ts"
 STUDIO_VITE = ROOT / "studio-ui/vite.config.ts"
 CONTROL_REQUIREMENTS = ROOT / "requirements-control.txt"
 CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
 SKIP_PATHS = {
+    Path("AGENTS.md"),
     Path(".git"), Path(".agents"), Path(".claude"), Path(".codex"),
     Path(".cursor"), Path(".impeccable"), Path(".local"), Path(".serena"),
     Path("studio-ui/node_modules"), Path("studio-ui/dist"),
@@ -208,8 +210,11 @@ def _check_studio_package(parsed_json: dict[Path, Any], failures: list[str]) -> 
 
 
 def _check_studio_network_surface(failures: list[str]) -> None:
+    html_text = read_text(STUDIO_HTML)
     api_text = read_text(STUDIO_API)
     vite_text = read_text(STUDIO_VITE)
+    if re.search(r"(?:src|href)=[\"']https?://", html_text):
+        failures.append("Studio HTML must not load remote resources")
     _check_studio_fetch_surface(api_text, failures)
     _check_studio_vite_surface(vite_text, failures)
 
@@ -260,7 +265,9 @@ def check_reusable_config(failures: list[str]) -> None:
     )
     for command, expected in commands:
         try:
-            result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                command, cwd=ROOT, capture_output=True, text=True, timeout=30, check=False
+            )
         except (OSError, subprocess.TimeoutExpired) as error:
             failures.append(f"repository check could not run: {error}")
             continue

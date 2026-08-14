@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 import stat
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from queuewright_control import (
     AdapterPolicy,
@@ -14,103 +16,9 @@ from queuewright_control import (
     ControlPlane,
     InMemoryKeyProvider,
     Ledger,
-    LocalDispatcher,
     Operation,
-    Request,
 )
-
-
-BOOTSTRAP = "launcher-only-bootstrap-capability-1234567890"
-
-
-class FakeTransport:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, dict[str, object]]] = []
-        self.ambiguous = False
-        self.bad_readback = False
-        self.rollback_applied_then_raises = False
-        self.authorization_changes_after_writes = False
-        self.write_raises_before_mutation = False
-        self.reconcile_not_applied = False
-        self.current_hashes: dict[str, str] = {}
-        self.identity = {
-            "canonical_origin": "https://tenant.example",
-            "tenant_fingerprint": "tenant-fingerprint",
-            "actor": "studio-service-user",
-            "permissions": ["admin.group"],
-            "version": "6.4",
-            "resolved_addresses": ["93.184.216.34"],
-            "redirected": False,
-        }
-
-    def __call__(self, kind: str, **kwargs: object) -> dict[str, object]:
-        self.calls.append((kind, kwargs))
-        if kind == "identity":
-            return dict(self.identity)
-        if kind == "reauthorize":
-            actor = self.identity["actor"]
-            if self.authorization_changes_after_writes and any(
-                call_kind == "write" for call_kind, _ in self.calls[:-1]
-            ):
-                actor = "changed-actor"
-            return {
-                "tenant_fingerprint": self.identity["tenant_fingerprint"],
-                "actor": actor,
-                "permissions": self.identity["permissions"],
-                "resolved_addresses": self.identity["resolved_addresses"],
-                "canonical_origin": self.identity["canonical_origin"],
-                "version": self.identity["version"],
-            }
-        operation = kwargs.get("operation")
-        if not isinstance(operation, Operation):
-            return {}
-        if kind == "precondition":
-            return {"hash": operation.precondition}
-        if kind == "write":
-            if self.write_raises_before_mutation:
-                self.write_raises_before_mutation = False
-                raise TimeoutError("write failed before remote mutation")
-            return {"ambiguous": self.ambiguous}
-        if kind == "reconcile":
-            if self.reconcile_not_applied:
-                return {"matched": False, "hash": operation.precondition}
-            return {"matched": True, "hash": operation.postcondition}
-        if kind == "readback" and self.bad_readback:
-            return {"hash": "unexpected-state"}
-        if kind == "current_hash":
-            return {
-                "hash": self.current_hashes.get(
-                    operation.id, operation.postcondition
-                )
-            }
-        if kind in {"readback", "verify"}:
-            return {"hash": operation.postcondition}
-        if kind == "rollback":
-            expected = str(
-                operation.rollback.get("postcondition", operation.precondition)
-            )
-            self.current_hashes[operation.id] = expected
-            if self.rollback_applied_then_raises:
-                self.rollback_applied_then_raises = False
-                raise TimeoutError("response lost after rollback")
-            return {"hash": expected}
-        return {}
-
-
-class FlakyAnchorProvider(InMemoryKeyProvider):
-    def __init__(self, key: bytes) -> None:
-        super().__init__(key)
-        self.fail_updates = 0
-
-    def compare_and_set_audit_anchor(
-        self,
-        expected: tuple[int, str] | None,
-        replacement: tuple[int, str],
-    ) -> bool:
-        if self.fail_updates:
-            self.fail_updates -= 1
-            return False
-        return super().compare_and_set_audit_anchor(expected, replacement)
+from tests.control_test_support import FakeTransport, FlakyAnchorProvider
 
 
 class ControlTests(unittest.TestCase):
@@ -197,7 +105,7 @@ class ControlTests(unittest.TestCase):
         with self.assertRaisesRegex(ControlError, "claims are incomplete"):
             invalid_plane.connect("https://tenant.example", "temporary-secret")
         failed_credential = invalid.calls[0][1]["credential"]
-        self.assertTrue(getattr(failed_credential, "closed"))
+        self.assertTrue(failed_credential.closed)
 
         self.ready()
         self.plane.apply("run-one", {"version": 1}, {"graph": 1})
@@ -295,6 +203,174 @@ class ControlTests(unittest.TestCase):
             other.make_preview({}, {}, [cyclic])
         other.disconnect()
 
+    def test_resolver_exception_fails_before_transport_or_credential_install(self) -> None:
+        def failing_resolver(_: str) -> list[str]:
+            raise RuntimeError("resolver unavailable")
+
+        transport = FakeTransport()
+        plane = ControlPlane(self.ledger, self.policy, transport, failing_resolver)
+
+        with self.assertRaises(ControlError) as failure:
+            plane.connect("https://tenant.example", "temporary-token")
+
+        self.assertEqual(failure.exception.code, "resolution_failed")
+        self.assertEqual(transport.calls, [])
+        self.assertIsNone(plane.connection)
+        self.assertIsNone(plane._credential)
+        self.assertEqual(plane.session_state, "disconnected")
+
+    def test_connect_zeroizes_credentials_after_transport_or_validation_failure(self) -> None:
+        for stage in ("transport", "validation"):
+            with self.subTest(stage=stage):
+                captured_credentials: list[object] = []
+
+                def failing_transport(kind: str, **kwargs: object) -> dict[str, object]:
+                    self.assertEqual(kind, "identity")
+                    credential = kwargs["credential"]
+                    captured_credentials.append(credential)
+                    if stage == "transport":
+                        raise TimeoutError("identity response lost")
+                    return {
+                        **FakeTransport().identity,
+                        "actor": "",
+                    }
+
+                plane = ControlPlane(
+                    self.ledger,
+                    self.policy,
+                    failing_transport,
+                    resolver=lambda _: ["93.184.216.34"],
+                )
+
+                if stage == "transport":
+                    with self.assertRaises(TimeoutError):
+                        plane.connect("https://tenant.example", "temporary-token")
+                else:
+                    with self.assertRaisesRegex(ControlError, "claims are incomplete"):
+                        plane.connect("https://tenant.example", "temporary-token")
+
+                self.assertTrue(getattr(captured_credentials[0], "closed"))
+                self.assertIsNone(plane.connection)
+                self.assertIsNone(plane._credential)
+                self.assertEqual(plane.session_state, "disconnected")
+
+    def test_failed_reconnect_preserves_the_existing_session(self) -> None:
+        self.plane.connect("https://tenant.example", "first-token")
+        old_connection = self.plane.connection
+        old_credential = self.plane._credential
+        captured_credentials: list[object] = []
+
+        def failing_transport(_: str, **kwargs: object) -> dict[str, object]:
+            captured_credentials.append(kwargs["credential"])
+            raise TimeoutError("identity response lost")
+
+        self.plane.transport = failing_transport
+        with self.assertRaises(TimeoutError):
+            self.plane.connect("https://tenant.example", "replacement-token")
+
+        self.assertIs(self.plane.connection, old_connection)
+        self.assertIs(self.plane._credential, old_credential)
+        self.assertFalse(getattr(old_credential, "closed"))
+        self.assertTrue(getattr(captured_credentials[0], "closed"))
+        self.assertEqual(self.plane.session_state, "connected")
+
+    def test_successful_reconnect_closes_the_replaced_credential(self) -> None:
+        self.plane.connect("https://tenant.example", "first-token")
+        old_connection = self.plane.connection
+        old_credential = self.plane._credential
+
+        replacement = self.plane.connect("https://tenant.example", "replacement-token")
+
+        self.assertIsNot(replacement, old_connection)
+        self.assertIs(self.plane.connection, replacement)
+        self.assertTrue(getattr(old_credential, "closed"))
+        self.assertFalse(getattr(self.plane._credential, "closed"))
+        self.assertEqual(self.plane.session_state, "connected")
+
+    def test_connect_identity_validation_order_is_stable(self) -> None:
+        from collections.abc import Mapping
+        from queuewright_control.model_credentials import EphemeralCredential
+
+        events: list[str] = []
+        values = dict(FakeTransport().identity)
+
+        class RecordingIdentity(Mapping[str, object]):
+            def __getitem__(self, field: str) -> object:
+                events.append(field)
+                return values[field]
+
+            def __iter__(self):
+                events.append("shape")
+                return iter(values)
+
+            def __len__(self) -> int:
+                return len(values)
+
+        def resolver(host: str) -> list[str]:
+            events.append(f"resolve:{host}")
+            return ["93.184.216.34"]
+
+        def transport(kind: str, **kwargs: object) -> RecordingIdentity:
+            self.assertEqual(kind, "identity")
+            self.assertFalse(getattr(kwargs["credential"], "closed"))
+            events.append("identity")
+            return RecordingIdentity()
+
+        def create_credential(token: str, expires_at: float) -> EphemeralCredential:
+            events.append("credential")
+            return EphemeralCredential(token, expires_at)
+
+        plane = ControlPlane(self.ledger, self.policy, transport, resolver)
+        with patch(
+            "queuewright_control.control_connection.EphemeralCredential",
+            side_effect=create_credential,
+        ):
+            plane.connect("HTTPS://Tenant.Example./", "temporary-token")
+
+        self.assertEqual(
+            events,
+            [
+                "resolve:tenant.example",
+                "credential",
+                "identity",
+                "shape",
+                "canonical_origin",
+                "redirected",
+                "resolved_addresses",
+                "permissions",
+                "tenant_fingerprint",
+                "actor",
+                "version",
+            ],
+        )
+        plane.disconnect()
+
+    def test_control_plane_connect_signature_and_mro_are_stable(self) -> None:
+        from inspect import Parameter, signature
+
+        parameters = signature(ControlPlane.connect).parameters
+        self.assertEqual(
+            tuple(parameters),
+            ("self", "origin", "token", "credential_ttl_seconds", "allow_private_origin"),
+        )
+        self.assertEqual(
+            parameters["credential_ttl_seconds"].kind, Parameter.KEYWORD_ONLY
+        )
+        self.assertEqual(parameters["credential_ttl_seconds"].default, 900)
+        self.assertEqual(parameters["allow_private_origin"].kind, Parameter.KEYWORD_ONLY)
+        self.assertFalse(parameters["allow_private_origin"].default)
+        self.assertEqual(
+            tuple(base.__name__ for base in ControlPlane.__mro__),
+            (
+                "ControlPlane",
+                "ControlConnectionMixin",
+                "ControlWorkflowMixin",
+                "ControlRecoveryMixin",
+                "ControlEvidenceMixin",
+                "object",
+            ),
+        )
+
     def test_ambiguous_write_reconciles_and_verify_is_separate(self) -> None:
         self.transport.ambiguous = True
         self.ready()
@@ -343,6 +419,170 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(self.ledger.state("run-one"), "applied")
         resumed.rollback("run-one")
         resumed.disconnect()
+
+    def test_resume_rejects_each_changed_stored_preview_binding(self) -> None:
+        class RecordingPreview:
+            binding_fields = (
+                "tenant_fingerprint",
+                "actor",
+                "permissions",
+                "policy_hash",
+                "project_id",
+            )
+
+            def __init__(self, preview: object) -> None:
+                self.preview = preview
+                self.accesses: list[str] = []
+
+            def __getattr__(self, field: str) -> object:
+                if field in self.binding_fields:
+                    self.accesses.append(field)
+                return getattr(self.preview, field)
+
+        self.transport.bad_readback = True
+        self.ready()
+        with self.assertRaises(ControlError):
+            self.plane.apply("run-one", {"version": 1}, {"graph": 1})
+        stored_preview = self.ledger.load_preview(self.plane.preview.hash)
+        self.plane.disconnect()
+
+        changed_bindings = (
+            ("tenant_fingerprint", "changed-tenant", ("tenant_fingerprint",)),
+            ("actor", "changed-actor", ("tenant_fingerprint", "actor")),
+            (
+                "permissions",
+                ("changed.permission",),
+                ("tenant_fingerprint", "actor", "permissions"),
+            ),
+            (
+                "policy_hash",
+                "changed-policy",
+                ("tenant_fingerprint", "actor", "permissions", "policy_hash"),
+            ),
+            (
+                "project_id",
+                "changed-project",
+                (
+                    "tenant_fingerprint",
+                    "actor",
+                    "permissions",
+                    "policy_hash",
+                    "project_id",
+                ),
+            ),
+        )
+        for field, changed_value, expected_accesses in changed_bindings:
+            with self.subTest(field=field):
+                resumed = ControlPlane(
+                    self.ledger,
+                    self.policy,
+                    FakeTransport(),
+                    resolver=lambda _: ["93.184.216.34"],
+                )
+                resumed.connect("https://tenant.example", "replacement-token")
+                changed_preview = RecordingPreview(
+                    replace(stored_preview, **{field: changed_value})
+                )
+
+                with (
+                    patch.object(
+                        self.ledger, "load_preview", return_value=changed_preview
+                    ),
+                    patch.object(AdapterPolicy, "validate") as validate,
+                    self.assertRaises(ControlError) as failure,
+                ):
+                    resumed.resume_run("run-one")
+
+                self.assertEqual(failure.exception.code, "run_invalid")
+                self.assertEqual(failure.exception.path, "/runs")
+                self.assertEqual(
+                    failure.exception.message,
+                    "stored run does not match the current tenant, actor, permissions, or policy",
+                )
+                self.assertEqual(failure.exception.run_id, "run-one")
+                validate.assert_not_called()
+                self.assertEqual(tuple(changed_preview.accesses), expected_accesses)
+                self.assertIsNone(resumed.preview)
+                self.assertEqual(resumed.session_state, "connected")
+                resumed.disconnect()
+
+    def test_reauthorization_rejects_each_changed_binding_before_writes(self) -> None:
+        changed_bindings = {
+            "tenant_fingerprint": "changed-tenant",
+            "actor": "changed-actor",
+            "permissions": ["changed.permission"],
+            "resolved_addresses": ["198.51.100.1"],
+            "canonical_origin": "https://replacement.example",
+            "version": "6.5",
+        }
+        for field, changed_value in changed_bindings.items():
+            with self.subTest(field=field):
+                with tempfile.TemporaryDirectory() as directory:
+                    ledger = Ledger(
+                        os.path.join(directory, "changed-binding.sqlite3"),
+                        InMemoryKeyProvider(b"c" * 32),
+                    )
+                    transport = FakeTransport()
+                    plane = ControlPlane(
+                        ledger,
+                        self.policy,
+                        transport,
+                        resolver=lambda _: ["93.184.216.34"],
+                    )
+                    plane.connect("https://tenant.example", "very-secret-token")
+                    preview = plane.make_preview(
+                        {"version": 1},
+                        {"graph": 1},
+                        [self.operation],
+                        project_id="project-one",
+                    )
+                    plane.approve(preview.hash)
+                    transport.identity[field] = changed_value
+
+                    with self.assertRaises(ControlError) as failure:
+                        plane.apply(f"changed-{field}", {"version": 1}, {"graph": 1})
+
+                    self.assertEqual(failure.exception.code, "authorization_changed")
+                    self.assertEqual(failure.exception.path, "/connection")
+                    self.assertEqual(
+                        failure.exception.message,
+                        "tenant, actor, permission, or address binding changed",
+                    )
+                    self.assertNotIn("write", [kind for kind, _ in transport.calls])
+                    plane.disconnect()
+                    ledger.close()
+
+    def test_reauthorization_checks_binding_fields_in_order(self) -> None:
+        class RecordingIdentity(dict[str, object]):
+            def __init__(self, values: dict[str, object]) -> None:
+                super().__init__(values)
+                self.accessed: list[str] = []
+
+            def get(self, key: str, default: object = None) -> object:
+                self.accessed.append(key)
+                return super().get(key, default)
+
+        self.ready()
+        connection = self.plane.connection
+        self.assertIsNotNone(connection)
+        identity = RecordingIdentity(dict(self.transport.identity))
+
+        self.assertTrue(self.plane._identity_matches_connection(identity, connection))
+        self.assertEqual(
+            identity.accessed,
+            [
+                "tenant_fingerprint",
+                "actor",
+                "permissions",
+                "resolved_addresses",
+                "canonical_origin",
+                "version",
+            ],
+        )
+
+        identity = RecordingIdentity({**self.transport.identity, "actor": "changed-actor"})
+        self.assertFalse(self.plane._identity_matches_connection(identity, connection))
+        self.assertEqual(identity.accessed, ["tenant_fingerprint", "actor"])
 
     def test_authorization_failure_after_begin_has_a_recovery_state(self) -> None:
         second = Operation(
@@ -481,53 +721,56 @@ class ControlTests(unittest.TestCase):
             ("UPDATE runs SET state='verified' WHERE run_id='run-one'", ()),
             ("DELETE FROM intents WHERE run_id='run-one'", ()),
             (
-                "UPDATE outcomes SET postimage_hash='forged-current' "
-                "WHERE run_id='run-one'",
+                (
+                    "UPDATE outcomes SET postimage_hash='forged-current' "
+                    "WHERE run_id='run-one'"
+                ),
                 (),
             ),
             (
-                "INSERT INTO intent_resolutions VALUES "
-                "('run-one','create-group','not_applied','absent',1.0)",
+                (
+                    "INSERT INTO intent_resolutions VALUES "
+                    "('run-one','create-group','not_applied','absent',1.0)"
+                ),
                 (),
             ),
             (
-                "INSERT INTO rollback_intents VALUES "
-                "('run-one','create-group','inactive-hash',1.0)",
+                (
+                    "INSERT INTO rollback_intents VALUES "
+                    "('run-one','create-group','inactive-hash',1.0)"
+                ),
                 (),
             ),
         ]
         for statement, parameters in corruptions:
-            with self.subTest(statement=statement):
-                with tempfile.TemporaryDirectory() as directory:
-                    ledger = Ledger(
+            with self.subTest(statement=statement), tempfile.TemporaryDirectory() as directory:
+                ledger = Ledger(
                         os.path.join(directory, "tamper.sqlite3"),
                         InMemoryKeyProvider(b"t" * 32),
                     )
-                    transport = FakeTransport()
-                    plane = ControlPlane(
+                transport = FakeTransport()
+                plane = ControlPlane(
                         ledger,
                         self.policy,
                         transport,
                         resolver=lambda _: ["93.184.216.34"],
-                    )
-                    plane.connect("https://tenant.example", "temporary-token")
-                    preview = plane.make_preview(
+                )
+                plane.connect("https://tenant.example", "temporary-token")
+                preview = plane.make_preview(
                         {"version": 1},
                         {"graph": 1},
                         [self.operation],
                         project_id="project-one",
-                    )
-                    plane.approve(preview.hash)
-                    plane.apply("run-one", {"version": 1}, {"graph": 1})
-                    ledger.db.execute(statement, parameters)
+                )
+                plane.approve(preview.hash)
+                plane.apply("run-one", {"version": 1}, {"graph": 1})
+                ledger.db.execute(statement, parameters)
 
-                    with self.assertRaisesRegex(ControlError, "authenticated audit"):
-                        plane.rollback("run-one")
-                    self.assertNotIn(
-                        "rollback", [kind for kind, _ in transport.calls]
-                    )
-                    plane.disconnect()
-                    ledger.close()
+                with self.assertRaisesRegex(ControlError, "authenticated audit"):
+                    plane.rollback("run-one")
+                self.assertNotIn("rollback", [kind for kind, _ in transport.calls])
+                plane.disconnect()
+                ledger.close()
 
     def test_deleting_authenticated_recovery_rows_fails_closed(self) -> None:
         self.transport.write_raises_before_mutation = True
@@ -658,70 +901,5 @@ class ControlTests(unittest.TestCase):
             reopened = Ledger(path, provider)
             self.assertTrue(reopened.verify_audit_chain())
             reopened.close()
-
-
-class DispatcherTests(unittest.TestCase):
-    def request(self, method: str, path: str, **headers: str) -> Request:
-        return Request(
-            method,
-            path,
-            {"Host": "127.0.0.1:9443", "Origin": "http://127.0.0.1:9443", **headers},
-        )
-
-    def test_one_time_bootstrap_route_and_csrf(self) -> None:
-        dispatcher = LocalDispatcher(
-            "127.0.0.1:9443",
-            "http://127.0.0.1:9443",
-            BOOTSTRAP,
-            {"/preview": ("GET", "POST")},
-        )
-        denied = dispatcher.dispatch(
-            self.request("POST", "/bootstrap"), lambda *_: {}
-        )
-        self.assertEqual(denied.status, 401)
-        boot = dispatcher.dispatch(
-            self.request("POST", "/bootstrap", **{"X-Bootstrap-Token": BOOTSTRAP}),
-            lambda *_: {},
-        )
-        self.assertEqual(boot.status, 201)
-        replay = dispatcher.dispatch(
-            self.request("POST", "/bootstrap", **{"X-Bootstrap-Token": BOOTSTRAP}),
-            lambda *_: {},
-        )
-        self.assertEqual(replay.status, 401)
-        session = str(boot.body["session_id"])
-        no_csrf = dispatcher.dispatch(
-            self.request("POST", "/preview", **{"X-Session": session}),
-            lambda *_: {},
-        )
-        self.assertEqual(no_csrf.status, 403)
-        ok = dispatcher.dispatch(
-            self.request(
-                "POST",
-                "/preview",
-                **{
-                    "X-Session": session,
-                    "X-CSRF-Token": str(boot.body["csrf"]),
-                },
-            ),
-            lambda *_: {"ok": True},
-        )
-        self.assertEqual(ok.body, {"ok": True})
-        missing = dispatcher.dispatch(
-            self.request("GET", "/arbitrary", **{"X-Session": session}),
-            lambda *_: {},
-        )
-        self.assertEqual(missing.status, 404)
-
-    def test_dispatcher_rejects_non_loopback_construction(self) -> None:
-        with self.assertRaises(ControlError):
-            LocalDispatcher(
-                "localhost:9443",
-                "http://localhost:9443",
-                BOOTSTRAP,
-                {},
-            )
-
-
 if __name__ == "__main__":
     unittest.main()
