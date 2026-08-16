@@ -1,4 +1,4 @@
-import type { StudioProjectV2 } from '../types'
+import type { CapabilityDecision, StudioProjectV2 } from '../types'
 import { replaceDecision } from './capability-meta'
 
 function projectWithDecisions(): StudioProjectV2 {
@@ -74,5 +74,51 @@ describe('capability metadata facade', () => {
     const project = projectWithDecisions()
 
     expect(replaceDecision(project, 'missing', { enabled: true })).toBe(project)
+  })
+
+  it('updates an own prototype-like decision without traversing inheritance', () => {
+    const project = projectWithDecisions()
+    const prototypeLikeDecision: CapabilityDecision = {
+      completion: 'ready',
+      delivery: 'automated',
+      risk: 'low',
+      dependencies: [],
+      enabled: false,
+    }
+    Object.defineProperty(project.workbook.capability_decisions, '__proto__', {
+      configurable: true,
+      enumerable: true,
+      value: prototypeLikeDecision,
+      writable: true,
+    })
+
+    const next = replaceDecision(project, '__proto__', { enabled: true })
+    const nextDecision = Object.getOwnPropertyDescriptor(
+      next.workbook.capability_decisions,
+      '__proto__',
+    )?.value as CapabilityDecision
+
+    expect(nextDecision.enabled).toBe(true)
+    expect(Object.getPrototypeOf(next.workbook.capability_decisions)).toBe(Object.prototype)
+  })
+
+  it('rejects an inherited __proto__ decision', () => {
+    const project = projectWithDecisions()
+    const inheritedDecisions = Object.create(null) as Record<string, CapabilityDecision>
+    Object.defineProperty(inheritedDecisions, '__proto__', {
+      configurable: true,
+      enumerable: true,
+      value: {
+        completion: 'ready',
+        delivery: 'automated',
+        risk: 'low',
+        dependencies: [],
+        enabled: false,
+      } satisfies CapabilityDecision,
+      writable: true,
+    })
+    project.workbook.capability_decisions = Object.create(inheritedDecisions)
+
+    expect(replaceDecision(project, '__proto__', { enabled: true })).toBe(project)
   })
 })

@@ -12,9 +12,12 @@ export function rebaseBlueprint(
   previous?: StudioProjectV2,
 ): StudioProjectV2 {
   if (!previous || previous.id !== migrated.id) return migrated
+  const editableDecisions = new Map(
+    Object.entries(previous.workbook.capability_decisions),
+  )
   const capabilityDecisions = Object.fromEntries(
     Object.entries(migrated.workbook.capability_decisions).map(([id, pinned]) => {
-      const editable = previous.workbook.capability_decisions[id]
+      const editable = editableDecisions.get(id)
       return [
         id,
         editable

@@ -53,7 +53,7 @@ The connected-control package is not imported by the CLI or Studio. See
 |---|---|
 | Offline CLI | Python 3.11 or newer |
 | Studio service | Python 3.11 or newer |
-| Full Python test suite | Python 3.11 or newer and `cryptography==49.0.0` |
+| Full Python test suite | Python 3.11 or newer and `cryptography==50.0.0` |
 | Studio frontend | Node.js 22.12 or newer and npm 10 or newer |
 | Browser tests and screenshots | Playwright Chromium |
 

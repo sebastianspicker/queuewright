@@ -39,7 +39,10 @@ credentials*.json
 .serena/
 **/.serena/
 .codex/
-.codacy/
+/.codacy/*
+!/.codacy/codacy.config.json
+!/.codacy/codacy.yaml
+!/.codacy/codacy.yml
 .kilo/
 .repowise/
 .codegraph/

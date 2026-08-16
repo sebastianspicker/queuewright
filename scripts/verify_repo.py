@@ -246,7 +246,7 @@ def check_studio_surface(parsed_json: dict[Path, Any], failures: list[str]) -> N
 def check_control_dependency(failures: list[str]) -> None:
     requirements = read_text(CONTROL_REQUIREMENTS).splitlines()
     active = [line.strip() for line in requirements if line.strip() and not line.startswith("#")]
-    if active != ["cryptography==49.0.0"]:
+    if active != ["cryptography==50.0.0"]:
         failures.append("connected-mode cryptography dependency must be pinned")
     workflow = read_text(CI_WORKFLOW)
     if "python3 -m pip install --requirement requirements-control.txt" not in workflow:

@@ -5,8 +5,8 @@ import type {
 
 function copiedDecisions(
   project: StudioProjectV2,
-): Record<string, CapabilityDecision> {
-  return Object.fromEntries(
+): Map<string, CapabilityDecision> {
+  return new Map(
     Object.entries(project.workbook.capability_decisions).map(([key, decision]) => [
       key,
       { ...decision },
@@ -15,23 +15,21 @@ function copiedDecisions(
 }
 
 function decisionFor(
-  decisions: Record<string, CapabilityDecision>,
+  decisions: ReadonlyMap<string, CapabilityDecision>,
   capabilityId: string,
 ): CapabilityDecision | undefined {
-  return Object.hasOwn(decisions, capabilityId)
-    ? decisions[capabilityId]
-    : undefined
+  return decisions.get(capabilityId)
 }
 
 function disableDecision(
-  decisions: Record<string, CapabilityDecision>,
+  decisions: Map<string, CapabilityDecision>,
   capabilityId: string,
 ): void {
   const decision = decisionFor(decisions, capabilityId)
   if (!decision) return
   decision.enabled = false
   decision.completion = decision.delivery === 'unsupported' ? 'blocked' : 'decision_required'
-  for (const [dependentId, dependent] of Object.entries(decisions)) {
+  for (const [dependentId, dependent] of decisions) {
     if (dependent.dependencies.includes(capabilityId)) {
       disableDecision(decisions, dependentId)
     }
@@ -39,7 +37,7 @@ function disableDecision(
 }
 
 function enableDecision(
-  decisions: Record<string, CapabilityDecision>,
+  decisions: Map<string, CapabilityDecision>,
   capabilityId: string,
 ): void {
   const decision = decisionFor(decisions, capabilityId)
@@ -71,7 +69,7 @@ export function replaceDecision(
     ...project,
     workbook: {
       ...project.workbook,
-      capability_decisions: decisions,
+      capability_decisions: Object.fromEntries(decisions),
     },
   }
 }
