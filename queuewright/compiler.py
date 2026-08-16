@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import ConfigurationError
+from .manifest_inventory import manifest_inventory
 from .profile import FIELD_COLLECTIONS, load_profile, validate_loaded_profile
 
 
@@ -56,7 +57,7 @@ def _validate_dependencies(operations: list[dict[str, Any]], known: set[str]) ->
         if unknown:
             raise ConfigurationError(
                 f"symbolic operation {operation['id']} has unknown dependency: "
-                f"{sorted(unknown)[0]}"
+                f"{min(unknown)}"
             )
 
 
@@ -129,15 +130,6 @@ def _base_operations(manifest: dict[str, Any]) -> tuple[list[dict[str, Any]], li
     return operations, field_ids
 
 
-def _reference_ids(manifest: dict[str, Any]) -> tuple[list[str], list[str], list[str], list[str]]:
-    group_ids, organization_ids, role_ids, tag_ids = _reference_ids(manifest)
-    return group_ids, organization_ids, role_ids, tag_ids
-
-
-def _append_user_operations(operations: list[dict[str, Any]], manifest: dict[str, Any]) -> None:
-    _append_user_operations(operations, manifest)
-
-
 def _append_automation_operations(
     operations: list[dict[str, Any]], manifest: dict[str, Any], dependencies: list[str]
 ) -> None:
@@ -172,29 +164,11 @@ def _build_operations(manifest: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _inventory(bundle: dict[str, Any], manifest: dict[str, Any]) -> dict[str, list[str]]:
-    object_manager_fields = sorted(
-        field["name"]
-        for collection in FIELD_COLLECTIONS
-        for field in manifest["object_manager"][collection]
-    )
     return {
         "agents": _keys(manifest["users"]["agents"]),
-        "checklist_templates": _keys(manifest["checklist_templates"]),
-        "containers": sorted(group["key"] for group in manifest["groups"] if group["kind"] == "container"),
-        "core_workflows": _keys(manifest["object_manager"]["core_workflows"]),
         "customers": _keys(manifest["users"]["customers"]),
-        "groups": _keys(manifest["groups"]),
-        "jobs": _keys(manifest["jobs"]),
-        "leaf_groups": sorted(group["key"] for group in manifest["groups"] if group["kind"] == "leaf"),
-        "macros": _keys(manifest["macros"]),
-        "object_manager_fields": object_manager_fields,
-        "organizations": _keys(manifest["organizations"]),
-        "overviews": _keys(manifest["overviews"]),
-        "report_profiles": _keys(manifest["report_profiles"]),
-        "roles": _keys(manifest["roles"]),
-        "tags": sorted(manifest["tags"]),
-        "triggers": _keys(manifest["triggers"]),
         "uat_scenarios": _keys(bundle["uat"]["scenarios"]),
+        **manifest_inventory(manifest),
     }
 
 

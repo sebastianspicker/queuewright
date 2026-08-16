@@ -62,21 +62,32 @@ class ControlEvidenceMixin:
             credential,
             fencing_token=fencing_token,
         )
-        if (
-            not isinstance(identity, Mapping)
-            or identity.get("tenant_fingerprint") != connection.tenant_fingerprint
-            or identity.get("actor") != connection.actor
-            or tuple(sorted(identity.get("permissions", ()))) != connection.permissions
-            or tuple(sorted(identity.get("resolved_addresses", ())))
-            != connection.pinned_addresses
-            or identity.get("canonical_origin") != connection.origin
-            or identity.get("version") != connection.version
+        if not isinstance(identity, Mapping) or not self._identity_matches_connection(
+            identity, connection
         ):
             raise ControlError(
                 "authorization_changed",
                 "/connection",
                 "tenant, actor, permission, or address binding changed",
             )
+
+    @staticmethod
+    def _identity_matches_connection(
+        identity: Mapping[str, Any], connection: Connection
+    ) -> bool:
+        if identity.get("tenant_fingerprint") != connection.tenant_fingerprint:
+            return False
+        if identity.get("actor") != connection.actor:
+            return False
+        if tuple(sorted(identity.get("permissions", ()))) != connection.permissions:
+            return False
+        if tuple(sorted(identity.get("resolved_addresses", ()))) != connection.pinned_addresses:
+            return False
+        if identity.get("canonical_origin") != connection.origin:
+            return False
+        if identity.get("version") != connection.version:
+            return False
+        return True
 
     def _require_connection(self) -> tuple[Connection, EphemeralCredential]:
         if not self.connection or not self._credential:

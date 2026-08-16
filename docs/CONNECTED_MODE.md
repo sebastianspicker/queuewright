@@ -14,7 +14,7 @@ None of these components are available through the current user interfaces.
 The encrypted ledger requires:
 
 ```text
-cryptography==49.0.0
+cryptography==50.0.0
 ```
 
 Install it through `requirements-control.txt`. The offline CLI and Studio

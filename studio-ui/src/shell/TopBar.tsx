@@ -9,7 +9,7 @@ import { useStudio } from '../studio-state'
 import { ImportControl } from './ImportControl'
 
 export function TopBar() {
-  const { project, compiling, dispatch, validateNow } = useStudio()
+  const { project, compiling, demoMode, dispatch, validateNow } = useStudio()
   const goToProjects = () => dispatch({ type: 'step', step: 'start' })
   return (
     <header className="topbar">
@@ -30,7 +30,7 @@ export function TopBar() {
       </button>
       <span className="local-badge">
         <LockKeyhole size={15} aria-hidden="true" />
-        Local workspace
+        {demoMode ? 'Static demo' : 'Local workspace'}
       </span>
       <ImportControl compact />
       <button
@@ -40,7 +40,7 @@ export function TopBar() {
         disabled={compiling}
       >
         <ShieldCheck size={19} />
-        {compiling ? 'Validating…' : 'Validate design'}
+        {compiling ? 'Validating…' : demoMode ? 'Simulate validation' : 'Validate design'}
       </button>
     </header>
   )

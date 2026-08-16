@@ -20,6 +20,7 @@ export function Review() {
     compileError,
     compiling,
     validateNow,
+    demoMode,
   } = useStudio()
   const ready = Boolean(result && blueprintResult) && !dirty && !compiling
   const decisions = Object.values(
@@ -53,7 +54,7 @@ export function Review() {
         description="Only the latest authoritative local compilation can be downloaded."
         action={
           <button className="button primary" type="button" onClick={validateNow} disabled={compiling}>
-            <ShieldCheck size={18} /> Validate design
+            <ShieldCheck size={18} /> {demoMode ? 'Simulate validation' : 'Validate design'}
           </button>
         }
       />
@@ -96,14 +97,14 @@ export function Review() {
           <button
             className={index === 0 ? 'button primary' : 'button quiet'}
             type="button"
-            disabled={!ready}
+            disabled={demoMode || !ready}
             onClick={() => {
               const artifact = artifacts.at(index)
               if (artifact) download(artifact[0], artifact[1])
             }}
             key={label}
           >
-            <Download size={17} /> {label}
+            <Download size={17} /> {label}{demoMode ? ' (simulated)' : ''}
           </button>
         ))}
       </div>

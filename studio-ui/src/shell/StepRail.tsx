@@ -36,9 +36,11 @@ const workflowPhases: Array<{
 ]
 
 export function StepRail() {
-  const { step, dispatch, hydrated, storageStatus } = useStudio()
+  const { step, dispatch, hydrated, storageStatus, demoMode } = useStudio()
   const currentIndex = steps.findIndex(([id]) => id === step)
-  const storageLabel = !hydrated || storageStatus === 'loading'
+  const storageLabel = demoMode
+    ? 'Fixture data · changes reset'
+    : !hydrated || storageStatus === 'loading'
     ? 'Loading browser projects…'
     : storageStatus === 'saving' || storageStatus === 'pending'
       ? 'Saving in this browser…'
