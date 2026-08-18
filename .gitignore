@@ -53,6 +53,7 @@ credentials*.json
 **/.claude/
 .cursor/
 **/.cursor/
+/.mcp.json
 /.aider*
 **/.aider*
 .queuewright-z2-implement/
