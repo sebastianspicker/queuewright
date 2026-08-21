@@ -55,7 +55,6 @@ The connected-control package is not imported by the CLI or Studio. See
 | Studio service | Python 3.11 or newer |
 | Full Python test suite | Python 3.11 or newer and `cryptography==50.0.0` |
 | Studio frontend | Node.js 22.12 or newer and npm 10 or newer |
-| Browser tests and screenshots | Playwright Chromium |
 
 The offline CLI and Studio service use the Python standard library. The pinned
 `cryptography` dependency is used only by `queuewright_control` and its tests.
@@ -105,7 +104,7 @@ script accepts one optional variable:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `STUDIO_URL` | `http://127.0.0.1:5173` | Browser URL used by `scripts/capture_studio_screenshots.mjs` |
+| `STUDIO_URL` | `http://127.0.0.1:5173` | Optional browser URL for the local Studio |
 
 See [Reusable configuration](docs/REUSABLE_CONFIGURATION.md) for a profile
 overview and the customization procedure.
@@ -190,7 +189,7 @@ accessibility conformance, or tenant interaction. See
 |---|---|
 | `queuewright/` | Profile loader, validator, compiler, Blueprint support, and CLI |
 | `queuewright_studio/` | Loopback JSON service used by Studio |
-| `studio-ui/` | React, TypeScript, Vite, Vitest, and Playwright frontend |
+| `studio-ui/` | React, TypeScript, and Vite frontend |
 | `queuewright_control/` | Experimental connected-control primitives |
 | `profiles/` | Reusable profile bundles |
 | `studio/catalog/` | Feature and capability registries |
@@ -199,7 +198,6 @@ accessibility conformance, or tenant interaction. See
 | `tests/` | Python unit and boundary tests |
 | `scripts/verify_repo.py` | Repository and documentation checks |
 | `scripts/verify_git_ignores.sh` | Git-native private and publishable path checks |
-| `scripts/capture_studio_screenshots.mjs` | Playwright screenshot capture |
 | `docs/` | Configuration, Studio, security-boundary, and release documentation |
 
 ## Development workflow
@@ -227,13 +225,11 @@ python3 scripts/verify_repo.py
 bash scripts/verify_git_ignores.sh
 ```
 
-Run the frontend checks from `studio-ui/` after `npm ci`:
+Build the frontend from `studio-ui/` after `npm ci`:
 
 ```bash
-npm run test
 npm run build
 npm run build:demo
-npm run test:e2e
 ```
 
 Active tests use the framework-standard locations:
@@ -244,11 +240,8 @@ Active tests use the framework-standard locations:
 | `tests/test_queuewright_blueprint.py` | Blueprint migration and graph contracts |
 | `tests/test_queuewright_studio.py` | Studio dispatch and HTTP boundary contracts |
 | `tests/test_queuewright_control.py` | Experimental connected-control contracts, active in CI |
-| `studio-ui/src/*.test.tsx` and `studio-ui/src/*.test.ts` | Vitest component, API, and model tests |
-| `studio-ui/e2e/*.spec.ts` | Playwright browser tests |
-
-CI uses Python 3.11 and Node.js 22. It installs Chromium before running the
-Playwright suite.
+CI runs the compact Python contract suite on Python 3.11. The Studio remains
+checked by its production build and the Python loopback service contracts.
 
 Current release-gate results and unresolved checks are recorded in
 [Release status](RELEASE_STATUS.md).

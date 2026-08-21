@@ -53,6 +53,7 @@ credentials*.json
 **/.claude/
 .cursor/
 **/.cursor/
+/.mcp.json
 /.aider*
 **/.aider*
 .queuewright-z2-implement/
@@ -139,3 +140,16 @@ tickets-export/
 /recordings/
 /studio-ui/screenshots/
 /docs/screenshots/local/
+
+# Generated test and coverage output (local only)
+/coverage/
+/htmlcov/
+/.coverage
+/.coverage.*
+/.pytest_cache/
+/test-results/
+/playwright-report/
+/blob-report/
+/coverage.xml
+/junit.xml
+/junit-*.xml

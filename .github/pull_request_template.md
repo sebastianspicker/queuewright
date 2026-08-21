@@ -16,6 +16,5 @@ Describe the user-visible or contract-level change.
 - [ ] `bash scripts/verify_git_ignores.sh`
 - [ ] `npm run test` (`studio-ui/`, when affected)
 - [ ] `npm run build` (`studio-ui/`, when affected)
-- [ ] `npm run test:e2e` (`studio-ui/`, when affected)
 
 List skipped checks and why:

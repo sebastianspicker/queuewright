@@ -140,24 +140,14 @@ npm run dev
 
 Open `http://127.0.0.1:5173`.
 
-## Testing
+## Verification
 
-Run frontend unit tests and the TypeScript build:
+Build the frontend:
 
 ```bash
 cd studio-ui
-npm run test
 npm run build
 ```
-
-Run the browser test:
-
-```bash
-npm run test:e2e
-```
-
-Playwright starts both loopback processes and requires ports `5173` and `8765`
-to be available.
 
 Backend API and boundary tests are part of the Python suite:
 

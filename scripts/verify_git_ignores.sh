@@ -11,13 +11,12 @@ private_paths=(
   .serena/project.local.yml .aider.chat.history.md
   probe.secrets.json probe.p12 id_ed25519 studio-ui/.npmrc .pypirc .netrc
   sample.credentials.json coverage.xml .coverage htmlcov/index.html
-  tests/__pycache__/probe.pyc studio-ui/test-results/failure.png
-  studio-ui/playwright-report/index.html
+  tests/__pycache__/probe.pyc studio-ui/dist/assets/app.js
 )
 
 publishable_paths=(
   token-policy.md .env.example .npmrc.example tests/test_probe.py
-  studio-ui/src/probe.test.ts studio-ui/e2e/probe.spec.ts
+  studio-ui/src/probe.ts
 )
 
 status=0

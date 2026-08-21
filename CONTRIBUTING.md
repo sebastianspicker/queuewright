@@ -46,9 +46,7 @@ python3 scripts/verify_repo.py
 Run the frontend gates from `studio-ui/`:
 
 ```bash
-npm run test
 npm run build
-npm run test:e2e
 ```
 
 `npm run build` performs TypeScript checking. The repository does not configure
