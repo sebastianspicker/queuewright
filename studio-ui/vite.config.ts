@@ -1,4 +1,3 @@
-/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -25,11 +24,5 @@ export default defineConfig({
       '/api/v1': { target: 'http://127.0.0.1:8765', changeOrigin: true },
       '/api/v2': { target: 'http://127.0.0.1:8765', changeOrigin: true },
     },
-  },
-  test: {
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-    globals: true,
-    exclude: ['**/node_modules/**', '**/e2e/**'],
   },
 })

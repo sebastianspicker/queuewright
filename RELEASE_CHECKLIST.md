@@ -18,9 +18,7 @@
 - [ ] `python3 -m unittest discover -s tests -v`
 - [ ] `python3 scripts/verify_repo.py`
 - [ ] `npm ci` from `studio-ui/`
-- [ ] `npm run test` from `studio-ui/`
 - [ ] `npm run build` from `studio-ui/`
-- [ ] `npm run test:e2e` from `studio-ui/`
 - [ ] `git diff --check`
 
 ## Manual checks

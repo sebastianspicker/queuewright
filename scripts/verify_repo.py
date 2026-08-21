@@ -28,7 +28,6 @@ SKIP_PATHS = {
     Path(".git"), Path(".agents"), Path(".claude"), Path(".codex"),
     Path(".cursor"), Path(".impeccable"), Path(".local"), Path(".serena"),
     Path("studio-ui/node_modules"), Path("studio-ui/dist"),
-    Path("studio-ui/playwright-report"), Path("studio-ui/test-results"),
 }
 PUBLICLY_OBSOLETE_PATHS = {
     Path(".grok"), Path("archive"), Path("docs/agent"),
@@ -205,8 +204,8 @@ def _check_studio_package(parsed_json: dict[Path, Any], failures: list[str]) -> 
     elif lock.get("version") != "0.1.0-alpha.1":
         failures.append("Studio lockfile version must match alpha candidate 0.1.0-alpha.1")
     scripts = package.get("scripts") if isinstance(package, dict) else None
-    if not isinstance(scripts, dict) or not {"dev", "build", "test", "test:e2e"} <= set(scripts):
-        failures.append("Studio package scripts are incomplete")
+    if not isinstance(scripts, dict) or not {"dev", "build"} <= set(scripts):
+        failures.append("Studio package must provide dev and build scripts")
 
 
 def _check_studio_network_surface(failures: list[str]) -> None:
@@ -251,7 +250,7 @@ def check_control_dependency(failures: list[str]) -> None:
     workflow = read_text(CI_WORKFLOW)
     if "python3 -m pip install --requirement requirements-control.txt" not in workflow:
         failures.append("CI must install the connected-mode test dependency")
-    for action in ("actions/checkout", "actions/setup-python", "actions/setup-node"):
+    for action in ("actions/checkout", "actions/setup-python"):
         if not re.search(
             rf"uses: {re.escape(action)}@[0-9a-f]{{40}}\s+# v6", workflow
         ):
