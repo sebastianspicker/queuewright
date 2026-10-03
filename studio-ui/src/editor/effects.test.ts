@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { staticDemoProject } from '../data'
-import { shouldScheduleAutomaticCompile } from './effects'
+import { compileMessage, LOCAL_SERVICE_UNREACHABLE, shouldScheduleAutomaticCompile } from './effects'
 import { initialState, studioReducer } from './reducer'
 
 const compileResult = {
@@ -42,5 +42,13 @@ describe('automatic compile scheduling', () => {
     const edited = studioReducer(failed, { type: 'project:replace', project: staticDemoProject() })
     expect(edited).toMatchObject({ revision: 10, dirty: true, compileError: undefined })
     expect(shouldScheduleAutomaticCompile({ demoMode: false, ...edited })).toBe(true)
+  })
+})
+
+describe('compile error messages', () => {
+  it('names an unreachable loopback service instead of the raw fetch error', () => {
+    expect(compileMessage(new TypeError('Failed to fetch'))).toBe(LOCAL_SERVICE_UNREACHABLE)
+    expect(compileMessage(new Error('Profile invalid'))).toBe('Profile invalid')
+    expect(compileMessage(new DOMException('aborted', 'AbortError'))).toBe('')
   })
 })

@@ -1,72 +1,103 @@
 import { displayGroupName, permissionFor, setPermission } from '../editor/model'
 import { useStudioProject } from '../editor/context'
-import { PageHeader } from '../components/ui'
-import { memo, useCallback, useMemo, type CSSProperties } from 'react'
+import { PageHeader, SectionHeading } from '../components/ui'
+import { memo, useCallback, useMemo } from 'react'
 import type { GroupResource, Permission, RoleResource } from '../contracts'
 
 const options: Permission[] = ['none', 'read', 'create', 'work']
 type PermissionChange = (role: string, group: string, permission: Permission) => void
-const PermissionCell = memo(function PermissionCell({ roleKey, roleName, leaf, permission, onChange }: {
-  roleKey: string; roleName: string; leaf: GroupResource; permission: Permission; onChange: PermissionChange
+
+function roleLabel(role: RoleResource): string {
+  return role.name.replace(/^.*?Role · /, '')
+}
+
+const PermissionCell = memo(function PermissionCell({ roleKey, roleName, leaf, leafName, permission, onChange }: {
+  roleKey: string; roleName: string; leaf: GroupResource; leafName: string; permission: Permission; onChange: PermissionChange
 }) {
-  return <select aria-label={`${roleName} ${leaf.name}`} value={permission}
-    onChange={(event) => onChange(roleKey, leaf.key, event.target.value as Permission)}>
-    {options.map((option) => <option value={option} key={option}>{option}</option>)}
-  </select>
+  return (
+    <td data-level={permission}>
+      <select
+        className="acl-select"
+        aria-label={`${roleName} on ${leafName}`}
+        value={permission}
+        onChange={(event) => onChange(roleKey, leaf.key, event.target.value as Permission)}
+      >
+        {options.map((option) => <option value={option} key={option}>{option}</option>)}
+      </select>
+    </td>
+  )
 })
-const AccessRow = memo(function AccessRow({ role, leaves, onChange }: {
-  role: RoleResource; leaves: GroupResource[]; onChange: PermissionChange
+
+const AccessRow = memo(function AccessRow({ role, leaves, names, onChange }: {
+  role: RoleResource; leaves: GroupResource[]; names: Map<string, string>; onChange: PermissionChange
 }) {
-  return <div className="matrix-row"><b>{role.name.replace(/^.*?Role · /, '')}</b>
-    {leaves.map((leaf) => <PermissionCell key={leaf.key} roleKey={role.key} roleName={role.name}
-      leaf={leaf} permission={permissionFor(role, leaf.key)} onChange={onChange} />)}
-  </div>
+  const label = roleLabel(role)
+  return (
+    <tr>
+      <th scope="row">{label}</th>
+      {leaves.map((leaf) => <PermissionCell key={leaf.key} roleKey={role.key} roleName={label}
+        leaf={leaf} leafName={names.get(leaf.key) ?? leaf.key} permission={permissionFor(role, leaf.key)} onChange={onChange} />)}
+    </tr>
+  )
 })
 
 export function Access() {
   const { project, editProject } = useStudioProject()
   const { bundle } = project
   const leaves = useMemo(() => bundle.manifest.groups.filter((group) => group.kind === 'leaf'), [bundle.manifest.groups])
+  const names = useMemo(() => new Map(leaves.map((leaf) => [leaf.key, displayGroupName(bundle, leaf)])), [bundle, leaves])
   const onPermission = useCallback<PermissionChange>((role, group, permission) => { editProject((current) => setPermission(current, role, group, permission)) }, [editProject])
+  const organizations = bundle.manifest.organizations
+  const populations = [...new Set(organizations.map((item) => item.class))]
   return (
     <section className="access-screen">
       <PageHeader
-        title="Design access by service"
-        description="Organizations, synthetic populations, and roles remain explicit and scoped to managed services."
+        title="Access by service"
+        description="Who may do what in each ticket-bearing service. Every grant is explicit and scoped to a managed service; nothing is inherited or shared by domain."
       />
-      <div className="three-columns">
-        <div>
-          <h2>Organizations</h2>
-          {bundle.manifest.organizations.map((item) => (
-            <p className="list-row" key={item.key}>
-              {displayGroupName(bundle, { ...item, kind: 'container' } as GroupResource)}
-              <small>{item.class}</small>
-            </p>
-          ))}
+      <SectionHeading id="acl-heading" aside={<span className="caption section-count">{bundle.manifest.roles.length} roles × {leaves.length} services</span>}>Access matrix</SectionHeading>
+      {leaves.length && bundle.manifest.roles.length ? (
+        <div className="matrix-scroll" role="region" aria-labelledby="acl-heading" tabIndex={0}>
+          <table className="matrix">
+            <thead>
+              <tr>
+                <th scope="col" className="matrix-corner"><span className="caption">Role</span><span className="caption">Service</span></th>
+                {leaves.map((leaf) => <th scope="col" key={leaf.key}><span>{names.get(leaf.key)}</span></th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {bundle.manifest.roles.map((role) => <AccessRow role={role} leaves={leaves} names={names} onChange={onPermission} key={role.key} />)}
+            </tbody>
+          </table>
         </div>
-        <div>
-          <h2>Populations</h2>
-          {[...new Set(bundle.manifest.organizations.map((item) => item.class))].map((item) => (
-            <p className="list-row" key={item}>{item.replaceAll('_', ' ')}</p>
-          ))}
-        </div>
-        <div>
-          <h2>Roles</h2>
-          {bundle.manifest.roles.map((item) => (
-            <p className="list-row" key={item.key}>
-              {item.name.replace(/^.*?Role · /, '')}
-              <small>Managed role</small>
-            </p>
-          ))}
-        </div>
-      </div>
-      <h2>ACL matrix</h2>
-      <div className="matrix-scroll">
-        <div className="matrix" style={{ '--service-count': leaves.length } as CSSProperties}>
-          <div className="matrix-corner">Role / service</div>
-          {leaves.map((leaf) => <b key={leaf.key}>{displayGroupName(bundle, leaf)}</b>)}
-          {bundle.manifest.roles.map((role) => <AccessRow role={role} leaves={leaves} onChange={onPermission} key={role.key} />)}
-        </div>
+      ) : (
+        <p className="notice">The matrix appears once the project has at least one role and one service. Add services on sheet 03.</p>
+      )}
+
+      <div className="schedule">
+        <section aria-labelledby="orgs-heading">
+          <SectionHeading id="orgs-heading" aside={<span className="caption section-count">{organizations.length}</span>}>Organizations</SectionHeading>
+          <ul className="schedule-list">
+            {organizations.map((item) => (
+              <li key={item.key}>
+                <span>{displayGroupName(bundle, { ...item, kind: 'container' } as GroupResource).replace(/^Organization · /, '')}</span>
+                <small>{item.class.replaceAll('_', ' ')}</small>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section aria-labelledby="pop-heading">
+          <SectionHeading id="pop-heading" aside={<span className="caption section-count">{populations.length}</span>}>Populations</SectionHeading>
+          <ul className="schedule-list">
+            {populations.map((item) => <li key={item}><span>{item.replaceAll('_', ' ')}</span></li>)}
+          </ul>
+        </section>
+        <section aria-labelledby="roles-heading">
+          <SectionHeading id="roles-heading" aside={<span className="caption section-count">{bundle.manifest.roles.length}</span>}>Roles</SectionHeading>
+          <ul className="schedule-list">
+            {bundle.manifest.roles.map((item) => <li key={item.key}><span>{roleLabel(item)}</span><small>managed</small></li>)}
+          </ul>
+        </section>
       </div>
     </section>
   )

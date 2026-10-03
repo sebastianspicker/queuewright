@@ -1,8 +1,4 @@
-import {
-  Check,
-  RotateCcw,
-  Search,
-} from 'lucide-react'
+import { RotateCcw, Search } from 'lucide-react'
 import { resetFeatures, toggleFeature } from '../editor/model'
 import { useStudio } from '../editor/context'
 import { EmptyState, PageHeader, SectionHeading } from '../components/ui'
@@ -33,27 +29,31 @@ export function Features() {
     (category === 'All categories' || feature.category === category)
     && `${feature.name} ${feature.description}`.toLowerCase().includes(query.toLowerCase()),
   )
+  const enabledCount = catalog.filter((feature) => bundle.feature_state[feature.id].enabled).length
   return (
     <section className="features-screen">
       <PageHeader
-        title="Choose the capabilities you need"
-        description="Enable only the workflows your teams will use. Dependencies are added automatically and remain inside your managed structure."
+        title="Policies and capabilities"
+        description="Switch on only the workflows your teams will use. Anything a capability depends on is enabled with it and stays inside the managed structure."
       />
-      {catalogError ? <p className="notice">{catalogError}</p> : null}
-      <div className="feature-filters">
+      {catalogError ? <p className="notice" role="status"><span>{catalogError}</span></p> : null}
+      <div className="filters" role="search">
         <label className="search-field">
-          <Search size={19} />
-          <span className="sr-only">Find a feature</span>
+          <Search size={16} strokeWidth={1.75} aria-hidden="true" />
+          <span className="sr-only">Find a capability</span>
           <input
+            className="input"
+            type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Find a feature"
+            placeholder="Find a capability"
           />
         </label>
         <select
+          className="select"
           value={category}
           onChange={(event) => setCategory(event.target.value)}
-          aria-label="Feature category"
+          aria-label="Capability category"
         >
           <option>All categories</option>
           {[...new Set(catalog.map((feature) => feature.category))].map((value) => (
@@ -61,51 +61,45 @@ export function Features() {
           ))}
         </select>
         <button className="text-button" type="button" onClick={() => updateProject(resetFeatures(project, catalog))}>
-          <RotateCcw size={16} /> Reset to safe baseline
+          <RotateCcw size={14} strokeWidth={1.75} aria-hidden="true" /> Reset to safe baseline
         </button>
       </div>
+      <p className="filters-summary caption" aria-live="polite">{enabledCount} of {catalog.length} enabled{visible.length !== catalog.length ? ` · showing ${visible.length}` : ''}</p>
       <div className="feature-catalog">
         {groupFeatures(visible).map(([group, features]) => (
-          <div className="feature-group" key={group}>
+          <section className="feature-group" key={group} aria-label={group}>
             <SectionHeading>{group}</SectionHeading>
-            {features.map((feature) => {
-              const enabled = bundle.feature_state[feature.id].enabled
-              return (
-                <div
-                  className={selectedFeature === feature.id ? 'feature-row selected' : 'feature-row'}
-                  onClick={() => selectFeature(feature.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      selectFeature(feature.id)
-                    }
-                  }}
-                  role="group"
-                  aria-label={`${feature.name} capability`}
-                  tabIndex={0}
-                  key={feature.id}
-                >
-                  <label className="check-control" onClick={(event) => event.stopPropagation()}>
+            <ul>
+              {features.map((feature) => {
+                const enabled = bundle.feature_state[feature.id].enabled
+                const selected = selectedFeature === feature.id
+                return (
+                  <li className={selected ? 'feature-row is-selected' : 'feature-row'} key={feature.id} onClick={() => selectFeature(feature.id)}>
                     <input
+                      className="check"
                       type="checkbox"
                       checked={enabled}
                       disabled={feature.locked}
+                      onClick={(event) => event.stopPropagation()}
                       onChange={(event) => updateProject(toggleFeature(project, feature.id, event.target.checked, catalog))}
-                      aria-label={feature.name}
+                      aria-label={`Enable ${feature.name}`}
                     />
-                    <span><Check size={15} /></span>
-                  </label>
-                  <strong>{feature.name}</strong>
-                  <p>{feature.description}</p>
-                  <em>{enabled ? 'Enabled' : 'Not selected'}</em>
-                </div>
-              )
-            })}
-          </div>
+                    <button className="feature-name" type="button" aria-pressed={selected} onClick={(event) => { event.stopPropagation(); selectFeature(feature.id) }}>
+                      <strong>{feature.name}</strong>
+                      <span>{feature.description}</span>
+                    </button>
+                    <span className={feature.locked ? 'feature-state is-locked' : enabled ? 'feature-state is-on' : 'feature-state'}>
+                      {feature.locked ? 'Baseline' : enabled ? 'On' : 'Off'}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
         ))}
         {!visible.length ? (
-          <EmptyState title="No capabilities found">
-            Try a different search term or choose another category.
+          <EmptyState title="No capability matches">
+            Try another word, or show all categories.
           </EmptyState>
         ) : null}
       </div>

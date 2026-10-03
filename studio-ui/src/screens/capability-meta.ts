@@ -1,5 +1,4 @@
 import type {
-  BlueprintCompileResult,
   CapabilityCompletion,
   CapabilityDelivery,
   StudioProjectV2,
@@ -114,9 +113,12 @@ export const organizationFields = [
   },
 ] as const
 
+const acronyms = new Map([['Ai', 'AI'], ['Uat', 'UAT'], ['Sla', 'SLA'], ['Acl', 'ACL'], ['Dr', 'DR']])
+
 export function title(value: string): string {
   return value.replaceAll('_', ' ').replaceAll('-', ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
+    .replace(/\b\w+\b/g, (word) => acronyms.get(word) ?? word)
 }
 
 export function organizationValue(project: StudioProjectV2, key: string): string {
@@ -134,18 +136,4 @@ export function deliveryMessage(value: CapabilityDelivery): string {
     ['unsupported', 'Not delivered by this workflow'],
   ])
   return messages.get(value) ?? 'Not delivered by this workflow'
-}
-
-export function graphSummary(result?: BlueprintCompileResult): Array<[string, string]> {
-  if (!result) return [['Configuration graph', 'Awaiting a local V2 compile']]
-  const count = (delivery: CapabilityDelivery) => result.graph.nodes.filter(
-    (node) => node.delivery === delivery,
-  ).length
-  return [
-    ['Configuration graph', `${result.graph.nodes.length} nodes in the compiled snapshot`],
-    ['Graph identity', result.graph.graph_hash],
-    ['Automated nodes', String(count('automated'))],
-    ['Manual nodes', String(count('guided_manual'))],
-    ['Unsupported nodes', String(count('unsupported'))],
-  ]
 }

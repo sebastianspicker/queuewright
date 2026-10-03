@@ -1,47 +1,44 @@
-import {
-  ChevronDown,
-  LockKeyhole,
-  Menu,
-  ShieldCheck,
-  University,
-} from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useStudio } from '../editor/context'
 import { ImportControl } from './ImportControl'
+import { SheetPager } from './SheetIndex'
 
 export function TopBar() {
-  const { project, compiling, demoMode, goToStep, validateNow } = useStudio()
-  const goToProjects = () => goToStep('start')
+  const { project, compiling, demoMode, step, goToStep, validateNow } = useStudio()
   return (
     <header className="topbar">
-      <button className="icon-button menu-button" type="button" aria-label="Open projects" onClick={goToProjects}>
-        <Menu size={24} />
-      </button>
-      <div className="brand" aria-label="qWright">
-        <span className="brand-mark" aria-hidden="true">q</span>
-        <span aria-hidden="true"><span className="brand-accent">q</span>Wright</span>
+      <div className="wordmark">
+        <span className="wordmark-name">Queuewright</span>
+        <span className="wordmark-product">Studio</span>
+        {demoMode ? <span className="tag is-solid wordmark-demo">Demo</span> : null}
       </div>
-      <button className="project-switcher" type="button" onClick={goToProjects}>
-        <University size={21} />
-        <span className="project-copy">
-          <small>Current project</small>
-          <strong>{project.name}</strong>
-        </span>
-        <ChevronDown size={17} />
-      </button>
-      <span className="local-badge">
-        <LockKeyhole size={15} aria-hidden="true" />
-        {demoMode ? 'Static demo' : 'Local workspace'}
-      </span>
-      <ImportControl compact />
       <button
-        className="button primary validate-button"
+        className="project-switcher"
         type="button"
-        onClick={validateNow}
-        disabled={compiling}
+        onClick={() => goToStep('start')}
+        aria-current={step === 'start' ? 'page' : undefined}
       >
-        <ShieldCheck size={19} />
-        {compiling ? 'Validating…' : demoMode ? 'Simulate validation' : 'Validate design'}
+        <span className="caption">Project</span>
+        <strong>{project.name}</strong>
+        <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" />
+        <span className="sr-only">, open project list</span>
       </button>
+      <div className="topbar-actions">
+        <ImportControl compact />
+        <button
+          className="button primary validate-button"
+          type="button"
+          onClick={validateNow}
+          disabled={compiling}
+        >
+          {compiling
+            ? 'Validating…'
+            : demoMode
+              ? <span>Simulate<span className="validate-long"> validation</span></span>
+              : <span>Validate<span className="validate-long"> design</span></span>}
+        </button>
+      </div>
+      <SheetPager />
     </header>
   )
 }

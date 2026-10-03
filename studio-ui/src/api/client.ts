@@ -55,7 +55,7 @@ async function json<T>(response: Response): Promise<T> {
     const error = body as ApiError
     throw new StudioApiError(response.status, {
       code: error.code ?? 'request_failed', path: error.path ?? 'request',
-      message: error.message ?? `Local qWright request failed (${response.status})`,
+      message: error.message ?? `Local Queuewright request failed (${response.status})`,
     })
   }
   return body as T

@@ -63,3 +63,4 @@ export function useStudio(): StudioContextValue { return useRequiredContext(Stud
 export function useStudioProject(): ProjectContextValue { return useRequiredContext(ProjectContext, 'useStudioProject') }
 export function useStudioStructure(): StructureContextValue { return useRequiredContext(StructureContext, 'useStudioStructure') }
 export function useStudioStep(): State['step'] { return useRequiredContext(StepContext, 'useStudioStep') }
+export { LOCAL_SERVICE_UNREACHABLE } from './effects'

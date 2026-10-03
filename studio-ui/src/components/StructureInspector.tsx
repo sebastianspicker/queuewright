@@ -1,4 +1,4 @@
-import { Copy, Network, Users, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import type { ComponentType, Dispatch } from 'react'
 import {
   customerEntryPoints,
@@ -43,31 +43,31 @@ function GroupDefinition({
   targetSchemaVersion: StudioProjectV2['target_schema_version']
 }) {
   return (
-    <div className="section">
-      <p className="section-label">Definition</p>
+    <fieldset className="inspector-section">
+      <legend className="caption">Definition</legend>
       <label className="field">
         Name
         <input value={groupName} onChange={(event) => { onNameChange(event.target.value) }} />
       </label>
       <label className="field">
-        Unit type
+        Type
         <select
           value={group.kind}
           disabled={isRoot || targetSchemaVersion === '1.0'}
           onChange={(event) => { onTypeChange(event.target.value as 'container' | 'leaf') }}
         >
-          <option value="container">Organizational unit</option>
-          <option value="leaf">Ticket-bearing service</option>
+          <option value="container">Unit (organizes the tree)</option>
+          <option value="leaf">Service (carries tickets)</option>
         </select>
       </label>
       <label className="field">
         Parent unit
         <select value={group.parent ?? ''} disabled={isRoot} onChange={(event) => { onParentChange(event.target.value) }}>
-          {isRoot ? <option value="">Root unit</option> : null}
+          {isRoot ? <option value="">None (root)</option> : null}
           {parents.map((parent) => <option value={parent.key} key={parent.key}>{displayGroupName(project, parent)}</option>)}
         </select>
       </label>
-    </div>
+    </fieldset>
   )
 }
 
@@ -86,16 +86,24 @@ function LeafDetails({
 }) {
   return (
     <>
-      <div className="section">
-        <p className="section-label">Operating posture</p>
-        <div className="switch-row"><span>Sensitive area</span><Switch checked={group.restricted === true} onChange={onRestrictedChange} label="Sensitive area" /></div>
-        <div className="switch-row"><span>Customer entry point</span><Switch checked={entryPoints.includes(group.key)} onChange={onEntryPointChange} label="Customer entry point" /></div>
-      </div>
-      <div className="section">
-        <p className="section-label">Generated access</p>
-        <label className="generated-field">Service role<span><Users size={18} aria-hidden="true" /><code>{group.key}</code><Copy size={17} aria-hidden="true" /></span></label>
-        <label className="generated-field">Cross-department handoff<span><Network size={18} aria-hidden="true" /><code>{group.key}-handoff</code><Copy size={17} aria-hidden="true" /></span></label>
-      </div>
+      <fieldset className="inspector-section">
+        <legend className="caption">Posture</legend>
+        <div className="switch-row">
+          <span><strong>Sensitive area</strong><small>Restricted details stay out of handoffs.</small></span>
+          <Switch checked={group.restricted === true} onChange={onRestrictedChange} label="Sensitive area" />
+        </div>
+        <div className="switch-row">
+          <span><strong>Customer entry point</strong><small>Offered to customers when they open a ticket.</small></span>
+          <Switch checked={entryPoints.includes(group.key)} onChange={onEntryPointChange} label="Customer entry point" />
+        </div>
+      </fieldset>
+      <section className="inspector-section" aria-labelledby="generated-access">
+        <h3 className="caption" id="generated-access">Generated access</h3>
+        <dl className="generated">
+          <div><dt>Service role</dt><dd><code>{group.key}</code></dd></div>
+          <div><dt>Handoff role</dt><dd><code>{group.key}-handoff</code></dd></div>
+        </dl>
+      </section>
     </>
   )
 }
@@ -105,17 +113,23 @@ export function StructureInspector({ Switch }: { Switch: SwitchControl }) {
   const { project, selectedGroup, selectGroup } = studio
   const { bundle } = project
   const group = bundle.manifest.groups.find((item) => item.key === selectedGroup)
-  if (!group) return <p className="inspector-empty">Select a unit or service to edit it.</p>
+  if (!group) return <p className="inspector-empty">Select a unit or service in the tree to edit it.</p>
   const isRoot = group.parent === undefined
   const parents = bundle.manifest.groups.filter((candidate) => candidate.kind === 'container' && candidate.key !== group.key && !isDescendant(bundle, candidate.key, group.key))
   const parent = bundle.manifest.groups.find((item) => item.key === group.parent) ?? group
   const groupName = displayGroupName(bundle, group)
-  const typeLabel = group.kind === 'leaf' ? 'Ticket-bearing service' : 'Organizational unit'
+  const typeLabel = group.kind === 'leaf' ? 'Service' : isRoot ? 'Root unit' : 'Unit'
   const close = () => { selectGroup(undefined) }
   const remove = () => { studio.updateProject(removeGroup(project, group.key)); close() }
   return (
     <>
-      <div className="inspector-title"><div><h2>{groupName}</h2><p className="inspector-subtitle">{typeLabel} · under {group.parent ? displayGroupName(bundle, parent) : 'Root'}</p></div><button className="icon-button" type="button" aria-label="Close inspector" onClick={close}><X size={22} /></button></div>
+      <div className="inspector-title">
+        <div>
+          <p className="caption">{typeLabel}{group.parent ? ` · in ${displayGroupName(bundle, parent)}` : ''}</p>
+          <h2>{groupName || 'Unnamed'}</h2>
+        </div>
+        <button className="icon-button" type="button" aria-label="Close inspector" onClick={close}><X size={18} strokeWidth={1.75} /></button>
+      </div>
       <GroupDefinition
         group={group}
         groupName={groupName}
@@ -128,8 +142,10 @@ export function StructureInspector({ Switch }: { Switch: SwitchControl }) {
         targetSchemaVersion={project.target_schema_version}
       />
       {group.kind === 'leaf' ? <LeafDetails entryPoints={customerEntryPoints(bundle)} group={group} onEntryPointChange={(checked) => { studio.updateProject(setCustomerEntryPoint(project, group.key, checked), group.key) }} onRestrictedChange={(checked) => { studio.updateProject(setRestricted(project, group.key, checked), group.key) }} Switch={Switch} /> : null}
-      <button className="button primary inspector-save" type="button" onClick={() => { studio.validateNow() }}>Validate changes</button>
-      {!isRoot ? <button className="text-button danger" type="button" onClick={remove}>Remove from structure</button> : null}
+      <div className="inspector-actions">
+        <button className="button primary" type="button" onClick={() => { studio.validateNow() }}>Validate changes</button>
+        {!isRoot ? <button className="text-button danger" type="button" onClick={remove}>Remove {group.kind === 'leaf' ? 'service' : 'unit'}</button> : null}
+      </div>
     </>
   )
 }

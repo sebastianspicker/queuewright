@@ -124,6 +124,14 @@ browser persistence. The Pages workflow deploys only `studio-ui/dist`.
 - `ready` means locally valid for review, not applied or externally verified.
 - Use text and structure in addition to color for status.
 - Preserve visible keyboard focus and reduced-motion behavior.
+- The title block along the bottom edge is the single place for project,
+  schema, revision, graph identity, open decisions, storage and validation
+  state; do not repeat that state in other bars.
+- Colors come from `studio-ui/src/styles/tokens.css`. Each accent has one
+  role: prussian for interaction and selection, redline for open decisions,
+  blockers and errors, ochre for manual work, verdigris for local validity.
+- Fonts (Archivo, IBM Plex Mono) are bundled from npm; Studio loads no
+  remote resources.
 
 WCAG conformance, cross-browser behavior, and responsive layout remain manual
 release checks.

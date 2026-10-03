@@ -1,5 +1,5 @@
 import { Component, lazy, Suspense, type ComponentType, type ReactNode } from 'react'
-import { Inspector, ProvenanceStrip, RevisionRail, StatusRail, StepRail, TopBar } from '../components'
+import { Inspector, SheetIndex, SheetNotesPanel, TitleBlock, TopBar } from '../components'
 import { Start } from '../screens/Start'
 import { StudioProvider, useStudioStep } from '../editor/context'
 import type { StepId } from '../contracts'
@@ -21,7 +21,7 @@ class ScreenBoundary extends Component<{ children: ReactNode }, { failed: boolea
   static getDerivedStateFromError() { return { failed: true } }
   render() {
     return this.state.failed
-      ? <section role="alert"><h1>This screen could not be loaded</h1><p>Your draft remains in this session. Choose another step, or reload Studio after checking the local service.</p></section>
+      ? <section className="sheet-failure" role="alert"><h1>This sheet could not be opened</h1><p>Your draft is still held in this session. Choose another sheet, or check that the local service is running and reload Studio.</p></section>
       : this.props.children
   }
 }
@@ -29,8 +29,8 @@ class ScreenBoundary extends Component<{ children: ReactNode }, { failed: boolea
 function Studio() {
   const step = useStudioStep()
   const Screen = screens[step]
-  return <div className="app-shell"><TopBar /><ProvenanceStrip /><div className="workspace"><StepRail /><RevisionRail />
-    <main className="canvas"><ScreenBoundary key={step}><Suspense fallback={<p role="status" aria-live="polite">Loading step…</p>}><Screen /></Suspense></ScreenBoundary></main>
-    <Inspector /></div><StatusRail /></div>
+  return <div className="app-shell" data-step={step}><TopBar /><div className="workspace"><SheetIndex />
+    <main className="canvas" id="sheet"><ScreenBoundary key={step}><Suspense fallback={<p className="sheet-loading" role="status">Opening sheet…</p>}><Screen /></Suspense></ScreenBoundary><div className="sheet-notes-inline"><SheetNotesPanel /></div></main>
+    <Inspector /></div><TitleBlock /></div>
 }
 export default function App() { return <StudioProvider><Studio /></StudioProvider> }

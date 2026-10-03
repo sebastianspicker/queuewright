@@ -1,41 +1,95 @@
-import {
-  AlertTriangle,
-  Building2,
-  CheckCircle2,
-  ClipboardCheck,
-  Workflow,
-} from 'lucide-react'
 import { useStudio } from '../editor/context'
-import { PageHeader } from '../components/ui'
-import { graphSummary, title } from './capability-meta'
+import { PageHeader, SectionHeading } from '../components/ui'
+import { title } from './capability-meta'
+
+function Figure({ value, label }: { value: number | string; label: string }) {
+  return (
+    <div className="figure">
+      <dt>{label}</dt>
+      <dd className="numeral">{value}</dd>
+    </div>
+  )
+}
+
+function Names({ ids }: { ids: string[] }) {
+  return <ul className="name-list">{ids.map((id) => <li key={id}>{title(id)}</li>)}</ul>
+}
 
 export function Readiness() {
   const { project, blueprintResult } = useStudio()
   const decisions = Object.entries(project.workbook.capability_decisions)
   const synthetic = project.bundle.manifest.users
   const scenarios = project.bundle.profile.uat.scenarios
-  const manual = decisions.filter(([, decision]) => decision.enabled && decision.delivery === 'guided_manual')
-  const unsupported = decisions.filter(([, decision]) => decision.delivery === 'unsupported')
-  const blocked = decisions.filter(([, decision]) => decision.completion === 'blocked')
+  const enabled = decisions.filter(([, decision]) => decision.enabled)
+  const ready = enabled.filter(([, decision]) => decision.completion === 'ready').length
+  const awaiting = enabled.filter(([, decision]) => decision.completion === 'decision_required').length
+  const manual = decisions.filter(([, decision]) => decision.enabled && decision.delivery === 'guided_manual').map(([id]) => id)
+  const unsupported = decisions.filter(([, decision]) => decision.delivery === 'unsupported').map(([id]) => id)
+  const blocked = decisions.filter(([, decision]) => decision.completion === 'blocked').map(([id]) => id)
+  const nodes = blueprintResult?.graph.nodes ?? []
+  const count = (delivery: string) => nodes.filter((node) => node.delivery === delivery).length
   return (
     <section className="readiness-screen">
       <PageHeader
-        kicker="Step 07 · Design readiness"
-        title="Check readiness honestly"
-        description="Readiness combines synthetic test coverage, declared decisions, and the latest local compile graph. It does not prove a tenant has been changed."
+        title="Readiness"
+        description="What the design is ready for, and what it is not. Readiness combines synthetic test coverage, the decisions on sheet 06 and the latest local compile. It never shows that a tenant has changed."
       />
-      <div className="readiness-grid">
-        <div className="readiness-card"><Building2 size={21} aria-hidden="true" /><h2>Safe synthetic test data</h2><p>{synthetic?.agents.length ?? 0} agents and {synthetic?.customers.length ?? 0} customers use the V1 safe synthetic bundle.</p><p>{scenarios.length} internal-only UAT scenarios; outbound communication remains disabled.</p></div>
-        <div className="readiness-card"><ClipboardCheck size={21} aria-hidden="true" /><h2>Decision completion</h2><p>{decisions.filter(([, decision]) => decision.enabled && decision.completion === 'ready').length} enabled capabilities are design-ready.</p><p>{decisions.filter(([, decision]) => decision.enabled && decision.completion === 'decision_required').length} enabled decisions still require an owner decision.</p></div>
-        <div className="readiness-card"><Workflow size={21} aria-hidden="true" /><h2>Graph readiness</h2>{graphSummary(blueprintResult).map(([label, value]) => <p key={label}><strong>{label}:</strong> {value}</p>)}</div>
+
+      <div className="readiness-columns">
+        <section aria-labelledby="ready-decisions">
+          <SectionHeading id="ready-decisions">Decisions</SectionHeading>
+          <dl className="figures">
+            <Figure value={ready} label="enabled and design-ready" />
+            <Figure value={awaiting} label="still need an owner decision" />
+          </dl>
+        </section>
+        <section aria-labelledby="ready-synthetic">
+          <SectionHeading id="ready-synthetic">Synthetic test data</SectionHeading>
+          <dl className="figures">
+            <Figure value={synthetic?.agents.length ?? 0} label="agents" />
+            <Figure value={synthetic?.customers.length ?? 0} label="customers" />
+            <Figure value={scenarios.length} label="internal UAT scenarios" />
+          </dl>
+          <p className="column-note">Outbound communication stays disabled.</p>
+        </section>
+        <section aria-labelledby="ready-graph">
+          <SectionHeading id="ready-graph">Configuration graph</SectionHeading>
+          {blueprintResult ? (
+            <>
+              <dl className="figures">
+                <Figure value={nodes.length} label="nodes" />
+                <Figure value={count('automated')} label="automated" />
+                <Figure value={count('guided_manual')} label="manual" />
+                <Figure value={count('unsupported')} label="unsupported" />
+              </dl>
+              <p className="column-note"><span className="caption">Identity</span> <code className="hash-full">{blueprintResult.graph.graph_hash}</code></p>
+            </>
+          ) : (
+            <p className="column-note is-pending">Not compiled yet. Validate the design to build the graph.</p>
+          )}
+        </section>
       </div>
-      <div className="readiness-limitations" aria-label="Readiness limitations">
-        <h2><AlertTriangle size={20} aria-hidden="true" /> Manual and unsupported limitations</h2>
-        {manual.length ? <p><strong>Manual delivery required:</strong> {manual.map(([id]) => title(id)).join(', ')}. These remain incomplete until independently performed and evidenced.</p> : <p>No enabled capabilities currently require guided manual delivery.</p>}
-        {unsupported.length ? <p><strong>Unsupported:</strong> {unsupported.map(([id]) => title(id)).join(', ')}. The studio cannot deliver these capabilities.</p> : null}
-        {blocked.length ? <p><strong>Blocked:</strong> {blocked.map(([id]) => title(id)).join(', ')}.</p> : null}
-        {!blueprintResult ? <p><strong>Compile status:</strong> no V2 compile result is available, so graph readiness is not established.</p> : <p><CheckCircle2 size={18} aria-hidden="true" /> The graph shown is a local compile snapshot only; it is not evidence of network access, tenant connection, or applied changes.</p>}
-      </div>
+
+      <section className="limits" aria-labelledby="limits-heading">
+        <SectionHeading id="limits-heading">Not delivered by Studio</SectionHeading>
+        <div className="limit-row">
+          <h3><span className="tag is-manual">Manual</span></h3>
+          {manual.length ? <div><Names ids={manual} /><p>Incomplete until an administrator performs them and keeps the evidence.</p></div> : <p>No enabled capability needs guided manual delivery.</p>}
+        </div>
+        <div className="limit-row">
+          <h3><span className="tag is-blocked is-locked">Unsupported</span></h3>
+          {unsupported.length ? <div><Names ids={unsupported} /><p>This workflow cannot deliver these. They stay visible as blockers.</p></div> : <p>None.</p>}
+        </div>
+        <div className="limit-row">
+          <h3><span className="tag is-blocked">Blocked</span></h3>
+          {blocked.length ? <div><Names ids={blocked} /></div> : <p>None.</p>}
+        </div>
+      </section>
+      <p className="notice">
+        {blueprintResult
+          ? <span>The graph is a <strong>local compile snapshot</strong>. It is not evidence of network access, a tenant connection or applied changes.</span>
+          : <span><strong>Graph readiness is not established:</strong> there is no local V2 compile result yet.</span>}
+      </p>
     </section>
   )
 }

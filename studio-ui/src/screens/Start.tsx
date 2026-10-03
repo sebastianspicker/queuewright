@@ -1,14 +1,8 @@
-import {
-  Building2,
-  Check,
-  ChevronRight,
-  Plus,
-  University,
-} from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { renameProject, setTargetSchema } from '../editor/model'
 import { useStudio } from '../editor/context'
 import { ImportControl } from '../components/ImportControl'
-import { PageHeader } from '../components/ui'
+import { EmptyState, PageHeader, SectionHeading } from '../components/ui'
 import type { SchemaVersion } from '../contracts'
 
 export function Start() {
@@ -19,6 +13,7 @@ export function Start() {
     openProject,
     importError,
     updateProject,
+    demoMode,
   } = useStudio()
   const { bundle } = project
   const root = bundle.manifest.groups.find((group) => group.parent === undefined)
@@ -30,11 +25,15 @@ export function Start() {
   return (
     <section className="start-screen">
       <PageHeader
-        title="Start a configuration"
-        description="Choose a safe local starting point. Nothing is sent to a Zammad tenant."
+        title="Open or start a project"
+        description={demoMode
+          ? 'This static demo runs on bundled fictional data. Edits reset when the page reloads, and nothing is validated or saved.'
+          : 'Projects are drafted and kept on this machine. Nothing on these sheets connects to, or changes, a Zammad tenant.'}
       />
-      {importError ? <p className="notice error">{importError}</p> : null}
-      <div className="project-basics">
+      {importError ? <p className="notice error" role="alert"><span>{importError}</span></p> : null}
+
+      <SectionHeading id="current-project">Current project</SectionHeading>
+      <div className="project-basics" aria-labelledby="current-project">
         <label className="field">
           Project name
           <input
@@ -48,38 +47,62 @@ export function Start() {
             value={project.target_schema_version}
             onChange={(event) => updateProject(setTargetSchema(project, event.target.value as SchemaVersion))}
           >
-            <option value="1.1">1.1 · nested units</option>
-            <option value="1.0" disabled={!canUseSchema10}>1.0 · flat legacy structure</option>
+            <option value="1.1">1.1, nested units</option>
+            <option value="1.0" disabled={!canUseSchema10}>1.0, flat legacy structure</option>
           </select>
         </label>
-        <p><strong>Schema {project.target_schema_version}</strong><small>{project.id}</small></p>
+        <dl className="project-id">
+          <dt className="caption">Project ID</dt>
+          <dd><code>{project.id}</code></dd>
+        </dl>
       </div>
-      <div className="start-actions">
-        <button className="start-action" type="button" onClick={() => void createNew('blank')}>
-          <Plus size={21} />
-          <span><strong>Blank project</strong><small>Begin with one root and one editable service.</small></span>
-        </button>
-        <button className="start-action" type="button" onClick={() => void createNew('example')}>
-          <University size={21} />
-          <span><strong>University template</strong><small>Open a complete, neutral service design covering every Queuewright policy family.</small></span>
-        </button>
-        <ImportControl />
-      </div>
-      <h2>Projects in this browser</h2>
-      <div className="project-library">
-        {projects.map((item) => (
-          <button
-            type="button"
-            className={item.id === project.id ? 'project-row selected' : 'project-row'}
-            onClick={() => void openProject(item.id)}
-            key={item.id}
-          >
-            <Building2 size={19} />
-            <span><strong>{item.name}</strong><small>{item.target_schema_version} · {item.id}</small></span>
-            {item.id === project.id ? <Check size={18} /> : <ChevronRight size={18} />}
+      {!canUseSchema10 ? <p className="field-note">Schema 1.0 is available only while every service sits directly under the root.</p> : null}
+
+      <SectionHeading id="start-from">Start something new</SectionHeading>
+      <ul className="start-options" aria-labelledby="start-from">
+        <li>
+          <button className="start-option" type="button" onClick={() => void createNew('blank')}>
+            <span className="start-option-mark" aria-hidden="true">A</span>
+            <span className="start-option-text"><strong>Blank project</strong><small>One root unit and one editable service.</small></span>
+            <ArrowRight size={18} strokeWidth={1.75} aria-hidden="true" />
           </button>
-        ))}
-      </div>
+        </li>
+        <li>
+          <button className="start-option" type="button" onClick={() => void createNew('example')}>
+            <span className="start-option-mark" aria-hidden="true">B</span>
+            <span className="start-option-text"><strong>University template</strong><small>A complete, fictional service design that exercises every Queuewright policy family.</small></span>
+            <ArrowRight size={18} strokeWidth={1.75} aria-hidden="true" />
+          </button>
+        </li>
+        <li><ImportControl /></li>
+      </ul>
+
+      <SectionHeading id="library" aside={<span className="caption section-count">{projects.length}</span>}>In this browser</SectionHeading>
+      {projects.length ? (
+        <ul className="project-library" aria-labelledby="library">
+          {projects.map((item) => {
+            const current = item.id === project.id
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className="project-row"
+                  aria-current={current ? 'true' : undefined}
+                  onClick={() => void openProject(item.id)}
+                >
+                  <strong>{item.name}</strong>
+                  <span className="project-row-meta">Schema {item.target_schema_version} · <code>{item.id}</code></span>
+                  <span className={current ? 'tag is-solid' : 'project-row-open'}>{current ? 'Open now' : 'Open'}</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      ) : (
+        <EmptyState title="No saved projects yet">
+          {demoMode ? 'The static demo does not save projects.' : 'Projects appear here once they have been saved in this browser.'}
+        </EmptyState>
+      )}
     </section>
   )
 }

@@ -1,112 +1,119 @@
-import {
-  Download,
-  ShieldCheck,
-} from 'lucide-react'
-import { useStudio } from '../editor/context'
-import { PageHeader } from '../components/ui'
+import { Download } from 'lucide-react'
+import { LOCAL_SERVICE_UNREACHABLE, useStudio } from '../editor/context'
+import { isLocallyValid, openDecisionCount, plural } from '../components/status'
+import { Delta, PageHeader, SectionHeading } from '../components/ui'
 import { download } from './download'
 
 function issueText(issue: string | { code: string; path: string; message: string }): string {
   return typeof issue === 'string' ? issue : `${issue.path}: ${issue.message}`
 }
 
+const artifactKinds = [
+  ['Blueprint', 'blueprint-v2', 'The canonical, editable Blueprint V2 document.'],
+  ['Project', 'project-bundle', 'Profile and manifest together, as compiled.'],
+  ['Profile', 'profile', 'Identity, presentation and UAT settings.'],
+  ['Desired state', 'desired-state', 'Groups, roles, organizations and objects.'],
+  ['Inert plan', 'plan', 'Ordered symbolic operations. Nothing executes them.'],
+  ['Configuration graph', 'configuration-graph', 'Nodes, dependencies and delivery per node.'],
+] as const
+
 export function Review() {
+  const studio = useStudio()
   const {
     project,
     result,
     blueprintResult,
-    dirty,
     compileError,
     compiling,
     validateNow,
     demoMode,
-  } = useStudio()
-  const ready = Boolean(result && blueprintResult) && !dirty && !compiling
-  const decisions = Object.values(
-    project.workbook.capability_decisions,
-  )
-  const unresolved = decisions.filter((decision) =>
-    decision.enabled
-    && (decision.completion === 'decision_required'
-      || decision.completion === 'blocked'),
-  ).length
-  const artifacts: Array<[string, unknown]> = result
-    ? [
-        [
-          `${project.bundle.profile.profile_key}.blueprint-v2.json`,
-          blueprintResult?.project,
-        ],
-        [`${project.bundle.profile.profile_key}.project-bundle.json`, blueprintResult?.bundle],
-        [`${project.bundle.profile.profile_key}.profile.json`, blueprintResult?.bundle.profile],
-        [`${project.bundle.profile.profile_key}.desired-state.json`, blueprintResult?.bundle.manifest],
-        [`${project.bundle.profile.profile_key}.plan.json`, blueprintResult?.plan],
-        [
-          `${project.bundle.profile.profile_key}.configuration-graph.json`,
-          blueprintResult?.graph,
-        ],
-      ]
-    : []
+    revision,
+  } = studio
+  const ready = isLocallyValid(studio)
+  const decisions = Object.values(project.workbook.capability_decisions)
+  const unresolved = openDecisionCount(project)
+  const key = project.bundle.profile.profile_key
+  const values: unknown[] = [
+    blueprintResult?.project,
+    blueprintResult?.bundle,
+    blueprintResult?.bundle.profile,
+    blueprintResult?.bundle.manifest,
+    blueprintResult?.plan,
+    blueprintResult?.graph,
+  ]
+  const issues = result?.issues ?? []
+  const state = demoMode ? 'demo' : ready ? 'valid' : compiling ? 'pending' : compileError ? 'error' : 'stale'
+  const verdict = {
+    demo: ['Simulated', 'The static demo cannot compile or export. Run Studio locally to validate this design.'],
+    valid: ['Locally valid', `Revision ${revision} compiled locally. Its artifacts are ready to download for review.`],
+    pending: ['Validating…', 'The local compiler is checking this revision.'],
+    error: compileError === LOCAL_SERVICE_UNREACHABLE
+      ? ['Not validated', 'Studio cannot reach its local service at 127.0.0.1:8765. Start it with python3 -m queuewright studio, then validate again.']
+      : ['Validation failed', compileError ?? ''],
+    stale: ['Needs validation', 'This revision has edits that have not been compiled. Exports stay disabled until it validates.'],
+  }[state]
   return (
     <section className="review-screen">
       <PageHeader
         title="Review and export"
-        description="Only the latest authoritative local compilation can be downloaded."
+        description="Validate the current revision, then take its artifacts to review. Only the latest successful local compile can be exported."
         action={
           <button className="button primary" type="button" onClick={validateNow} disabled={compiling}>
-            <ShieldCheck size={18} /> {demoMode ? 'Simulate validation' : 'Validate design'}
+            {demoMode ? 'Simulate validation' : ready ? 'Validate again' : 'Validate design'}
           </button>
         }
       />
-      <div className="review-grid">
-        <div>
-          <h2>Validation</h2>
-          <p className={ready ? 'valid' : 'invalid'}>
-            {ready
-              ? 'Blueprint validated for local export'
-              : compiling
-                ? 'Validating…'
-                : compileError ?? 'Edits are awaiting validation'}
-          </p>
-          {result?.issues?.map((issue) => <p key={issueText(issue)}>{issueText(issue)}</p>)}
-        </div>
-        <div>
-          <h2>Coverage</h2>
-          <p>{decisions.length} capabilities accounted for</p>
-          <p>{unresolved} enabled decisions unresolved</p>
-          <p>{blueprintResult?.graph.nodes.length ?? 0} graph nodes</p>
-        </div>
-        <div>
-          <h2>Symbolic plan</h2>
-          <p>{result?.plan.operations.length ?? 0} inert operations</p>
-          <p>No network or tenant apply capability</p>
-          <p className="hash">SHA-256 {blueprintResult?.hashes.graph ?? 'awaiting compiler'}</p>
-        </div>
+      <div className={`verdict is-${state}`}>
+        <p className="verdict-state">{verdict[0]}</p>
+        <p className="verdict-text">{verdict[1]}</p>
       </div>
-      <p className="notice">
-        Export readiness confirms deterministic local artifacts only. Until
-        validation succeeds, exports stay disabled. Manual, unsupported, and
-        tenant verification work remains visible in the blueprint.
-      </p>
+      {issues.length ? (
+        <section aria-labelledby="issues-heading" className="issues">
+          <SectionHeading id="issues-heading" aside={<span className="caption section-count">{issues.length}</span>}>Compiler issues</SectionHeading>
+          <ul>{issues.map((issue) => <li key={issueText(issue)}><code>{issueText(issue)}</code></li>)}</ul>
+        </section>
+      ) : null}
+
+      <section aria-labelledby="artifacts-heading">
+        <SectionHeading id="artifacts-heading" aside={<span className="caption section-count">6 files · JSON</span>}>Artifacts</SectionHeading>
+        <ul className="artifacts">
+          {artifactKinds.map(([label, suffix, description], index) => (
+            <li className="artifact" key={label}>
+              <span className="artifact-text">
+                <strong>{label}</strong>
+                <code>{key}.{suffix}.json</code>
+                <small>{description}</small>
+              </span>
+              <button
+                className={index === 0 ? 'button primary' : 'button'}
+                type="button"
+                disabled={demoMode || !ready}
+                onClick={() => download(`${key}.${suffix}.json`, values[index])}
+                aria-label={`Download ${label}${demoMode ? ' (simulated)' : ''}`}
+              >
+                <Download size={16} strokeWidth={1.75} aria-hidden="true" /> Download
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section aria-labelledby="coverage-heading" className="coverage">
+        <SectionHeading id="coverage-heading">Coverage</SectionHeading>
+        <dl className="coverage-list">
+          <div><dt>Capabilities accounted for</dt><dd className="numeral">{decisions.length}</dd></div>
+          <div><dt>Enabled decisions unresolved</dt><dd>{unresolved ? <Delta count={unresolved} accessibleLabel={plural(unresolved, 'open decision')} /> : <span className="numeral">0</span>}</dd></div>
+          <div><dt>Graph nodes</dt><dd className="numeral">{blueprintResult?.graph.nodes.length ?? 0}</dd></div>
+          <div><dt>Inert plan operations</dt><dd className="numeral">{result?.plan.operations.length ?? 0}</dd></div>
+          <div className="is-wide"><dt>Graph SHA-256</dt><dd><code className="hash-full">{blueprintResult?.hashes.graph ?? 'not compiled'}</code></dd></div>
+        </dl>
+        <p className="notice">Export confirms deterministic local artifacts only. Manual, unsupported and tenant-verification work stays recorded in the Blueprint; nothing here has network or apply capability.</p>
+      </section>
+
       <details className="json-preview">
-        <summary>Blueprint V2 JSON preview</summary>
+        <summary>Blueprint V2 as JSON</summary>
         <pre>{JSON.stringify(blueprintResult?.project ?? project, null, 2)}</pre>
       </details>
-      <div className="export-list">
-        {(['Blueprint', 'Project', 'Profile', 'Desired state', 'Inert plan', 'Configuration graph'] as const).map((label, index) => (
-          <button
-            className={index === 0 ? 'button primary' : 'button quiet'}
-            type="button"
-            disabled={demoMode || !ready}
-            onClick={() => {
-              const artifact = artifacts.at(index)
-              if (artifact) download(artifact[0], artifact[1])
-            }}
-            key={label}
-          >
-            <Download size={17} /> {label}{demoMode ? ' (simulated)' : ''}
-          </button>
-        ))}
-      </div>
     </section>
   )
 }
