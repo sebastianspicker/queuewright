@@ -1,5 +1,8 @@
-"""Local-only Studio service for inert Zammad configuration projects."""
+"""Compatibility package for the original Queuewright Studio imports.
 
-from .service import StudioService, create_server
+New code should import from :mod:`queuewright.studio`.
+"""
+
+from queuewright.studio import StudioService, create_server
 
 __all__ = ["StudioService", "create_server"]

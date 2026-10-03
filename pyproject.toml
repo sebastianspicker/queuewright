@@ -1,9 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "queuewright"
-version = "0.1.0"
+version = "0.1.0a1"
+description = "Offline compiler for reviewable Zammad configuration plans"
+readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "build>=1.2",
+    "jsonschema>=4.23,<5",
+    "ruff>=0.12",
+]
+
+[project.scripts]
+queuewright = "queuewright.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["queuewright*"]
+
+[tool.setuptools.package-data]
+"queuewright.contracts" = ["catalogs/*.json", "schemas/*.json", "schemas/README.md"]
+"queuewright.examples" = ["README.md", "minimal/*.json", "university/*.json", "university/README.md"]
 
 [tool.ruff]
 line-length = 100

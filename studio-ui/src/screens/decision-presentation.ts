@@ -1,4 +1,4 @@
-import type { CapabilityDelivery } from '../types'
+import type { CapabilityDelivery } from '../contracts'
 
 export function decisionPresentation(delivery: CapabilityDelivery) {
   switch (delivery) {

@@ -6,9 +6,8 @@ on:
     paths:
       - .github/workflows/pages.yml
       - studio-ui/**
-      - studio/catalog/**
-      - studio/templates/university/**
-      - profiles/example/**
+      - queuewright/contracts/**
+      - queuewright/examples/**
   workflow_dispatch:
 
 permissions:

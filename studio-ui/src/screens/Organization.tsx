@@ -1,15 +1,15 @@
 import { ShieldAlert } from 'lucide-react'
-import { useStudio } from '../studio-state'
-import { PageHeader } from '../ui'
+import { useStudioProject } from '../editor/context'
+import { replaceOrganizationValue } from '../editor/model'
+import { PageHeader } from '../components/ui'
 import {
   organizationFields,
   organizationValue,
-  replaceOrganizationValue,
   title,
 } from './capability-meta'
 
 export function Organization() {
-  const { blueprint, updateBlueprint } = useStudio()
+  const { project, updateProject } = useStudioProject()
   return (
     <section className="organization-screen">
       <PageHeader
@@ -17,16 +17,15 @@ export function Organization() {
         title="Describe the organization"
         description="Use plain-language operational context. This workbook intentionally does not collect contact details, tenant addresses, URLs, or credentials."
       />
-      {!blueprint ? <p className="notice">A Blueprint V2 project is required before organization details can be reviewed.</p> : null}
-      {blueprint ? <div className="organization-fields" aria-label="Safe organization details">
+      <div className="organization-fields" aria-label="Safe organization details">
         {organizationFields.map((field) => (
           <label className="field organization-field" key={field.key}>
             <span>{field.label}<small>{field.description}</small></span>
             {field.kind === 'select' ? (
               <select
-                value={organizationValue(blueprint, field.key)}
-                onChange={(event) => updateBlueprint(
-                  replaceOrganizationValue(blueprint, field.key, event.target.value),
+                value={organizationValue(project, field.key)}
+                onChange={(event) => updateProject(
+                  replaceOrganizationValue(project, field.key, event.target.value),
                 )}
               >
                 <option value="">Choose…</option>
@@ -36,16 +35,16 @@ export function Organization() {
               </select>
             ) : (
               <input
-                value={organizationValue(blueprint, field.key)}
+                value={organizationValue(project, field.key)}
                 placeholder={field.placeholder}
-                onChange={(event) => updateBlueprint(
-                  replaceOrganizationValue(blueprint, field.key, event.target.value),
+                onChange={(event) => updateProject(
+                  replaceOrganizationValue(project, field.key, event.target.value),
                 )}
               />
             )}
           </label>
         ))}
-      </div> : null}
+      </div>
       <p className="notice"><ShieldAlert size={18} aria-hidden="true" /> Keep this workspace local and synthetic. Connection, application, and tenant administration are outside this workflow.</p>
     </section>
   )

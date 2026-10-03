@@ -1,3 +1,0 @@
-# Required only by the experimental queuewright_control ledger.
-# The offline compiler and Studio service use the Python standard library.
-cryptography==50.0.0

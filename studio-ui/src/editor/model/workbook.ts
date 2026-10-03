@@ -1,0 +1,92 @@
+import type {
+  CapabilityDecision,
+  StudioProjectV2,
+} from '../../contracts'
+
+function copiedDecisions(
+  project: StudioProjectV2,
+): Map<string, CapabilityDecision> {
+  return new Map(
+    Object.entries(project.workbook.capability_decisions).map(([key, decision]) => [
+      key,
+      { ...decision },
+    ]),
+  )
+}
+
+function decisionFor(
+  decisions: ReadonlyMap<string, CapabilityDecision>,
+  capabilityId: string,
+): CapabilityDecision | undefined {
+  return decisions.get(capabilityId)
+}
+
+function disableDecision(
+  decisions: Map<string, CapabilityDecision>,
+  capabilityId: string,
+): void {
+  const decision = decisionFor(decisions, capabilityId)
+  if (!decision) return
+  decision.enabled = false
+  decision.completion = decision.delivery === 'unsupported' ? 'blocked' : 'decision_required'
+  for (const [dependentId, dependent] of decisions) {
+    if (dependent.dependencies.includes(capabilityId)) {
+      disableDecision(decisions, dependentId)
+    }
+  }
+}
+
+function enableDecision(
+  decisions: Map<string, CapabilityDecision>,
+  capabilityId: string,
+): void {
+  const decision = decisionFor(decisions, capabilityId)
+  if (!decision) return
+  decision.enabled = true
+  for (const dependency of decision.dependencies) {
+    enableDecision(decisions, dependency)
+  }
+  if (decision.delivery === 'unsupported') decision.completion = 'blocked'
+}
+
+export function replaceDecision(
+  project: StudioProjectV2,
+  id: string,
+  patch: Partial<Pick<CapabilityDecision, 'enabled' | 'completion'>>,
+): StudioProjectV2 {
+  const source = project.workbook.capability_decisions
+  if (!Object.hasOwn(source, id)) return project
+  const decisions = copiedDecisions(project)
+  const updatedTarget = decisionFor(decisions, id)
+  if (patch.enabled !== undefined) {
+    if (patch.enabled) enableDecision(decisions, id)
+    else disableDecision(decisions, id)
+  }
+  if (patch.completion !== undefined && updatedTarget) {
+    updatedTarget.completion = patch.completion
+  }
+  return {
+    ...project,
+    workbook: {
+      ...project.workbook,
+      capability_decisions: Object.fromEntries(decisions),
+    },
+  }
+}
+
+export function replaceOrganizationValue(
+  project: StudioProjectV2,
+  key: string,
+  value: string,
+): StudioProjectV2 {
+  return {
+    ...project,
+    workbook: {
+      ...project.workbook,
+      organization: {
+        ...project.workbook.organization,
+        [key]: value,
+      },
+    },
+  }
+}

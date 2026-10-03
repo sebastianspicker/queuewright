@@ -1,156 +1,32 @@
-import exampleManifestJson from '../../../profiles/example/desired-state.json'
-import exampleProfileJson from '../../../profiles/example/profile.json'
-import universityManifestJson from '../../../studio/templates/university/university.desired-state.json'
-import universityProfileJson from '../../../studio/templates/university/profile.json'
-import { bundledCatalog } from './catalog'
-import type {
-  FeatureId,
-  FeatureState,
-  ManifestDocument,
-  ProfileDocument,
-  ResourceOwner,
-  StudioProject,
-} from '../types'
+import exampleManifestJson from '../../../queuewright/examples/minimal/desired-state.json'
+import exampleProfileJson from '../../../queuewright/examples/minimal/profile.json'
+import minimalProjectV2Json from '../../../queuewright/examples/minimal/project-v2.json'
+import universityManifestJson from '../../../queuewright/examples/university/university.desired-state.json'
+import universityProfileJson from '../../../queuewright/examples/university/profile.json'
+import universityProjectV2Json from '../../../queuewright/examples/university/project-v2.json'
+import {
+  type ManifestDocument,
+  type ProfileDocument,
+  type RawBundle,
+  type StudioProjectV2,
+} from '../contracts'
+import { cloneJson as clone } from '../contracts/runtime'
 
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T
-}
-
-function initialFeatureState(
-  ownership: Record<string, ResourceOwner> = {},
-): Record<FeatureId, FeatureState> {
-  const owners = new Set(Object.values(ownership))
-  const enabled = new Set<FeatureId>(
-    bundledCatalog
-      .filter((feature) => feature.locked || owners.has(feature.id))
-      .map((feature) => feature.id),
-  )
-  let changed = true
-  while (changed) {
-    changed = false
-    for (const feature of bundledCatalog) {
-      if (!enabled.has(feature.id)) continue
-      for (const dependency of feature.dependencies) {
-        if (enabled.has(dependency)) continue
-        enabled.add(dependency)
-        changed = true
-      }
-    }
-  }
-  return Object.fromEntries(
-    bundledCatalog.map((feature) => [
-      feature.id,
-      {
-        enabled: enabled.has(feature.id),
-        settings: clone(feature.defaultSettings),
-      },
-    ]),
-  ) as Record<FeatureId, FeatureState>
-}
-
-export function resourceIds(
-  profile: ProfileDocument,
-  manifest: ManifestDocument,
-): string[] {
-  const ids: string[] = []
-  const add = (collection: string, items: Array<{ key: string }>) => {
-    for (const item of items) ids.push(`${collection}:${item.key}`)
-  }
-  add('groups', manifest.groups)
-  add('organizations', manifest.organizations)
-  add('roles', manifest.roles)
-  add('agents', manifest.users.agents)
-  add('customers', manifest.users.customers)
-  add('overviews', manifest.overviews)
-  add('macros', manifest.macros)
-  for (const tag of manifest.tags) ids.push(`tags:${tag}`)
-  add('checklist_templates', manifest.checklist_templates)
-  add('triggers', manifest.triggers)
-  add('jobs', manifest.jobs)
-  add('report_profiles', manifest.report_profiles)
-  const objectManagerFields = [
-    ...manifest.object_manager.ticket_fields,
-    ...manifest.object_manager.user_fields,
-    ...manifest.object_manager.organization_fields,
-    ...manifest.object_manager.group_fields,
-  ]
-  for (const field of objectManagerFields) {
-    ids.push(`object_manager_fields:${field.name}`)
-  }
-  add('core_workflows', manifest.object_manager.core_workflows)
-  add('uat_scenarios', profile.uat.scenarios)
-  return ids.sort()
-}
-
-export function ownerForResource(id: string): ResourceOwner {
-  const prefixOwners: Array<[string, ResourceOwner]> = [
-    ['groups:', 'core'], ['organizations:', 'core'], ['roles:', 'core'],
-    ['core_workflows:', 'core'], ['agents:', 'dummy_users_uat'],
-    ['customers:', 'dummy_users_uat'], ['uat_scenarios:', 'access_matrix'],
-    ['overviews:', 'overviews'], ['macros:', 'macros'],
-    ['checklist_templates:', 'checklists'], ['triggers:', 'triggers'],
-    ['jobs:', 'scheduled_reviews'], ['report_profiles:', 'report_profiles'],
-  ]
-  const prefixOwner = prefixOwners.find(([prefix]) => id.startsWith(prefix))?.[1]
-  if (prefixOwner) return prefixOwner
-  if (id.endsWith('/uat')) return 'access_matrix'
-  const contentOwners: Array<[string, ResourceOwner]> = [
-    ['handoff', 'cross_department_handoff'],
-    ['sensitive', 'sensitive_area_handling'],
-    ['information_security', 'sensitive_area_handling'],
-    ['user_population', 'user_classification'],
-    ['organization_class', 'organization_classification'],
-    ['group_class', 'group_classification'],
-  ]
-  const contentOwner = contentOwners.find(([term]) => id.includes(term))?.[1]
-  if (contentOwner) return contentOwner
-  if (id.startsWith('object_manager_fields:')) return 'ticket_fields'
-  return 'custom'
-}
-
-export function syncOwnership(
-  profile: ProfileDocument,
-  manifest: ManifestDocument,
-  previous: Record<string, ResourceOwner> = {},
-): Record<string, ResourceOwner> {
-  const ownership = new Map(Object.entries(previous))
-  return Object.fromEntries(
-    resourceIds(profile, manifest).map((id) => [
-      id,
-      ownership.get(id) ?? ownerForResource(id),
-    ]),
+/** Checked-in output from the backend compiler, used only by the network-free static demo. */
+export function staticDemoProject(kind: 'blank' | 'example' = 'example'): StudioProjectV2 {
+  return clone(
+    (kind === 'blank' ? minimalProjectV2Json : universityProjectV2Json) as StudioProjectV2,
   )
 }
 
-function projectFrom(
-  id: string,
-  profile: ProfileDocument,
-  manifest: ManifestDocument,
-): StudioProject {
-  const project: StudioProject = {
-    project_schema_version: '1.0',
-    id,
-    name: profile.display_name,
-    target_schema_version: profile.schema_version,
-    profile,
-    manifest,
-    resource_ownership: {},
-    feature_state: initialFeatureState(),
+export function exampleBundle(): RawBundle {
+  return {
+    profile: clone(universityProfileJson) as ProfileDocument,
+    manifest: clone(universityManifestJson) as ManifestDocument,
   }
-  project.resource_ownership = syncOwnership(profile, manifest)
-  project.feature_state = initialFeatureState(project.resource_ownership)
-  return project
 }
 
-export function exampleProject(id = 'university-service-desk'): StudioProject {
-  return projectFrom(
-    id,
-    clone(universityProfileJson) as ProfileDocument,
-    clone(universityManifestJson) as ManifestDocument,
-  )
-}
-
-export function blankProject(): StudioProject {
+function blankDocuments(): RawBundle {
   const profile = clone(exampleProfileJson) as ProfileDocument
   const manifest = clone(exampleManifestJson) as ManifestDocument
   profile.schema_version = '1.1'
@@ -173,12 +49,7 @@ export function blankProject(): StudioProject {
   manifest.manifest_key = 'queuewright-draft-v1'
   manifest.managed_prefix = 'qWright Draft ·'
   manifest.technical_namespace = 'queuewright_draft_'
-  const namedResources = [
-    ...manifest.groups,
-    ...manifest.organizations,
-    ...manifest.roles,
-  ]
-  for (const item of namedResources) {
+  for (const item of [...manifest.groups, ...manifest.organizations, ...manifest.roles]) {
     item.name = item.name?.replace('Example Prototype ·', 'qWright Draft ·') ?? ''
   }
   manifest.users.email_template = 'queuewright_draft.{kind}.{key}@example.invalid'
@@ -192,5 +63,10 @@ export function blankProject(): StudioProject {
   const firstTicketField = manifest.object_manager.ticket_fields.at(0)
   if (firstTicketField) firstTicketField.name = 'queuewright_draft_service_code'
   manifest.uat.title_prefix = '[QWRIGHT-UAT]'
-  return projectFrom(`studio-draft-${Date.now().toString(36)}`, profile, manifest)
+  return { profile, manifest }
+}
+
+/** Raw authored input for normal creation; the API creates all canonical metadata. */
+export function blankBundle(): RawBundle {
+  return blankDocuments()
 }

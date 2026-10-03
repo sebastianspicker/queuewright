@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repository_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repository_root"
+
+if [[ -n "${PYTHON:-}" ]]; then
+  python_bin="$PYTHON"
+elif [[ -x .venv/bin/python ]]; then
+  python_bin=".venv/bin/python"
+else
+  python_bin="python3"
+fi
+
+run_lane() {
+  local label="$1"
+  shift
+  printf '\n== %s ==\n' "$label"
+  "$@"
+}
+
+run_lane "Ruff" "$python_bin" -m ruff check .
+run_lane "Architecture" "$python_bin" -B scripts/check_architecture.py
+run_lane "Active Python self-test" "$python_bin" -B -m queuewright self-test
+run_lane "Active Python tests" "$python_bin" -B -m unittest discover -s tests -p 'test_*.py' -v
+run_lane "Structural policy" "$python_bin" -B scripts/verify_repo.py
+run_lane "Git ignore policy" bash scripts/verify_git_ignores.sh
+run_lane "Studio Vitest" npm --prefix studio-ui run test
+run_lane "Studio build" npm --prefix studio-ui run build
+run_lane "Studio static demo build" npm --prefix studio-ui run build:demo
+
+build_output="$(mktemp -d -t queuewright-build.XXXXXX)"
+trap 'rm -rf -- "$build_output"' EXIT
+run_lane "Package build" "$python_bin" -m build --outdir "$build_output"
+run_lane "Package archive validation" "$python_bin" - "$build_output" <<'PY'
+from __future__ import annotations
+
+import sys
+import tarfile
+import zipfile
+from pathlib import Path
+
+output = Path(sys.argv[1])
+wheel = next(output.glob("queuewright-*.whl"), None)
+sdist = next(output.glob("queuewright-*.tar.gz"), None)
+if wheel is None or sdist is None:
+    raise SystemExit("missing wheel or source distribution")
+required = {
+    "queuewright/contracts/catalogs/features.json",
+    "queuewright/contracts/catalogs/capabilities.json",
+    "queuewright/contracts/schemas/README.md",
+    "queuewright/contracts/schemas/queuewright-profile.schema.json",
+    "queuewright/contracts/schemas/queuewright-desired-state.schema.json",
+    "queuewright/contracts/schemas/queuewright-project.schema.json",
+    "queuewright/contracts/schemas/queuewright-project-v2.schema.json",
+    "queuewright/contracts/schemas/queuewright-editor-compile.schema.json",
+    "queuewright/examples/minimal/profile.json",
+    "queuewright/examples/minimal/desired-state.json",
+    "queuewright/examples/minimal/project-v2.json",
+    "queuewright/examples/university/profile.json",
+    "queuewright/examples/university/university.desired-state.json",
+    "queuewright/examples/university/project-v2.json",
+}
+with zipfile.ZipFile(wheel) as archive:
+    names = set(archive.namelist())
+if not required <= names:
+    raise SystemExit(f"wheel is missing package data: {sorted(required - names)}")
+with tarfile.open(sdist) as archive:
+    names = {name.split("/", 1)[1] for name in archive.getnames() if "/" in name}
+if not required <= names:
+    raise SystemExit(f"source distribution is missing package data: {sorted(required - names)}")
+print("PASS: package archives include contract and example data")
+PY

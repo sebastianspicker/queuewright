@@ -1,4 +1,4 @@
-import type { CapabilityDecision } from '../types'
+import type { CapabilityDecision } from '../contracts'
 import { capabilityDomains } from './capability-meta'
 
 export function decisionsByDomain(decisions: Array<[string, CapabilityDecision]>) {

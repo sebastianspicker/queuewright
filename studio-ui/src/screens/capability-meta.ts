@@ -3,9 +3,7 @@ import type {
   CapabilityCompletion,
   CapabilityDelivery,
   StudioProjectV2,
-} from '../types'
-
-export { replaceDecision } from './capability-decisions'
+} from '../contracts'
 
 export const completions: CapabilityCompletion[] = [
   'decision_required',
@@ -126,23 +124,6 @@ export function organizationValue(project: StudioProjectV2, key: string): string
     ([candidate]) => candidate === key,
   )?.[1]
   return typeof value === 'string' ? value : ''
-}
-
-export function replaceOrganizationValue(
-  project: StudioProjectV2,
-  key: string,
-  value: string,
-): StudioProjectV2 {
-  return {
-    ...project,
-    workbook: {
-      ...project.workbook,
-      organization: {
-        ...project.workbook.organization,
-        [key]: value,
-      },
-    },
-  }
 }
 
 export function deliveryMessage(value: CapabilityDelivery): string {

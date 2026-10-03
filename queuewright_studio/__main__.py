@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from .service import serve
+import sys
 
+from queuewright.cli import main
 
 if __name__ == "__main__":
-    serve()
+    raise SystemExit(main(["studio", *sys.argv[1:]]))

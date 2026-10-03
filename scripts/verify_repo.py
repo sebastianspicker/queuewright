@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Dependency-free public-alpha consistency checks for Queuewright."""
+"""Dependency-free structural and publication-policy checks for Queuewright."""
 
 from __future__ import annotations
 
@@ -8,47 +7,51 @@ import os
 import re
 import shutil
 import subprocess
-import sys
+import tomllib
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 GIT = shutil.which("git")
-STUDIO_CATALOG = ROOT / "studio/catalog/features.json"
-STUDIO_CAPABILITY_CATALOG = ROOT / "studio/catalog/capabilities.json"
-STUDIO_PACKAGE = ROOT / "studio-ui/package.json"
-STUDIO_LOCK = ROOT / "studio-ui/package-lock.json"
-STUDIO_HTML = ROOT / "studio-ui/index.html"
-STUDIO_API = ROOT / "studio-ui/src/api.ts"
-STUDIO_VITE = ROOT / "studio-ui/vite.config.ts"
-CONTROL_REQUIREMENTS = ROOT / "requirements-control.txt"
-CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
+PYPROJECT = ROOT / "pyproject.toml"
+STUDIO_ROOT = ROOT / "studio-ui"
+STUDIO_PACKAGE = STUDIO_ROOT / "package.json"
+STUDIO_LOCK = STUDIO_ROOT / "package-lock.json"
+STUDIO_HTML = STUDIO_ROOT / "index.html"
+STUDIO_VITE = STUDIO_ROOT / "vite.config.ts"
+CONTROL_ROOT = ROOT / "experimental" / "connected_control"
+ROOT_CONNECTION_SCHEMA = ROOT / "queuewright" / "contracts" / "schemas" / "zammad-connection.schema.json"
+CONTROL_CONNECTION_SCHEMA = (
+    CONTROL_ROOT / "queuewright_control" / "schemas" / "zammad-connection.schema.json"
+)
+CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
+PAGES_WORKFLOW = ROOT / ".github" / "workflows" / "pages.yml"
 SKIP_PATHS = {
-    Path("AGENTS.md"),
-    Path(".git"), Path(".agents"), Path(".claude"), Path(".codex"),
-    Path(".cursor"), Path(".impeccable"), Path(".local"), Path(".serena"),
-    Path("studio-ui/node_modules"), Path("studio-ui/dist"),
+    Path(".git"), Path(".agents"), Path(".claude"), Path(".codex"), Path(".cursor"),
+    Path(".impeccable"), Path(".local"), Path(".serena"), Path("studio-ui/node_modules"),
+    Path("studio-ui/dist"), Path("build"), Path("dist"),
 }
-PUBLICLY_OBSOLETE_PATHS = {
-    Path(".grok"), Path("archive"), Path("docs/agent"),
-    Path("docs/archive"), Path("docs/design/mockups"), Path("docs/proposal"),
-    Path("docs/ui/concepts"), Path("docs/z2"),
+AGENT_DIRECTORY_NAMES = {".agent", ".agents", ".ai", ".claude", ".codex", ".cursor"}
+AGENT_FILE_NAMES = {
+    ".cursorrules", "agent.md", "agents.md", "claude.md", "codex.md", "gemini.md",
+    "copilot-instructions.md",
 }
-STUDIO_FEATURE_IDS = {
-    "ticket_fields", "user_classification", "organization_classification",
-    "group_classification", "overviews", "macros", "checklists", "triggers",
-    "scheduled_reviews", "report_profiles", "cross_department_handoff",
-    "sensitive_area_handling", "dummy_users_uat", "access_matrix",
+PROCESS_FILE_NAMES = {
+    ".history-maintenance-provenance", "tasks.md", "plan.md", "progress.md", "scratchpad.md",
+    "worklog.md", "work-log.md", "devlog.md", "development-log.md",
+    "implementation-notes.md", "handoff.md", "handover.md",
 }
-STUDIO_CAPABILITY_IDS = {
-    "organization", "service-topology", "organizations-customers", "roles-acl",
-    "identity-security", "fields-core-workflows", "calendars-sla", "tags",
-    "overviews-macros-templates-text-modules-checklists",
-    "triggers-schedulers-report-profiles", "channels-postmaster-signatures",
-    "webhooks-integrations", "knowledge-base", "time-accounting",
-    "privacy-retention", "branding-ticket-settings", "ai", "uat-evidence",
-    "platform-dr",
+REQUIRED_PATHS = {
+    Path("experimental/connected_control/pyproject.toml"),
+    Path("experimental/connected_control/tests"),
+    Path("scripts/check_architecture.py"),
+    Path("scripts/verify"),
 }
+STALE_PUBLIC_PATHS = (
+    "profiles/example/", "studio/templates/", "studio/catalog/", "schemas/queuewright-",
+    "requirements-control.txt", "RELEASE_STATUS.md",
+)
 
 
 def is_sensitive_name(name: str) -> bool:
@@ -62,28 +65,59 @@ def is_sensitive_name(name: str) -> bool:
 
 
 def is_forbidden_tracked_path(path: Path) -> bool:
-    return any(
-        part.lower() != ".env.example" and is_sensitive_name(part)
-        for part in path.parts
-    ) or path == Path(".local") or Path(".local") in path.parents
+    lower_parts = tuple(part.lower() for part in path.parts)
+    lower_name = path.name.lower()
+    process_artifact = len(path.parts) == 1 and (
+        lower_name in PROCESS_FILE_NAMES
+        or lower_name.endswith(("-ledger.md", "_ledger.md"))
+        or lower_name.startswith(
+            (
+                "agent-notes", "agent-output", "agent-report", "agent-context",
+                "agent-memory", "ai_notes", "ai_report", "ai_audit", "ai_summary",
+                "llm_notes", "gpt_notes", "chatgpt_notes", "claude_notes", "codex_notes",
+            )
+        )
+    )
+    return (
+        any(part in AGENT_DIRECTORY_NAMES for part in lower_parts)
+        or lower_name in AGENT_FILE_NAMES
+        or process_artifact
+        or any(
+            part.lower() != ".env.example" and is_sensitive_name(part)
+            for part in path.parts
+        )
+        or path == Path(".local")
+        or Path(".local") in path.parents
+    )
 
 
 def is_safe_path(path: Path) -> bool:
-    if (
-        "__pycache__" in path.parts
-        or any(part.startswith(".aider") for part in path.parts)
-        or any(is_sensitive_name(part) for part in path.parts)
-    ):
+    if "__pycache__" in path.parts or any(part.startswith(".aider") for part in path.parts):
         return False
     return not any(path == prefix or prefix in path.parents for prefix in SKIP_PATHS)
 
 
 def active_files() -> Iterator[Path]:
+    if GIT is not None:
+        try:
+            names = subprocess.run(
+                [GIT, "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+            ).stdout.decode().split("\0")
+        except (OSError, subprocess.CalledProcessError, UnicodeDecodeError):
+            pass
+        else:
+            for name in filter(None, names):
+                path = ROOT / name
+                if path.is_file():
+                    yield path
+            return
     for directory, names, filenames in os.walk(ROOT, topdown=True):
         directory_path = Path(directory)
         names[:] = [
-            name for name in names
-            if is_safe_path((directory_path / name).relative_to(ROOT))
+            name for name in names if is_safe_path((directory_path / name).relative_to(ROOT))
         ]
         for filename in filenames:
             path = directory_path / filename
@@ -95,12 +129,6 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _git_command(*arguments: str) -> list[str]:
-    if GIT is None:
-        raise OSError("git executable is not available")
-    return [GIT, *arguments]
-
-
 def local_link_target(source: Path, destination: str) -> Path | None:
     destination = destination.strip().strip("<>")
     if not destination or destination.startswith(("#", "mailto:", "http://", "https://", "tel:")):
@@ -108,7 +136,11 @@ def local_link_target(source: Path, destination: str) -> Path | None:
     destination = destination.split("#", 1)[0].split("?", 1)[0]
     if not destination:
         return None
-    target = ROOT / destination.lstrip("/") if destination.startswith("/") else source.parent / destination
+    target = (
+        ROOT / destination.lstrip("/")
+        if destination.startswith("/")
+        else source.parent / destination
+    )
     try:
         relative = target.resolve().relative_to(ROOT)
     except ValueError:
@@ -116,189 +148,206 @@ def local_link_target(source: Path, destination: str) -> Path | None:
     return target if is_safe_path(relative) else None
 
 
-def _check_markdown(path: Path, text: str, failures: list[str]) -> None:
-    for match in re.finditer(r"\*\*([^*\n]+)\*\*", text):
-        content = match.group(1).strip().strip("`")
-        if content and not re.search(r"\s", content):
-            failures.append(f"single-word bold emphasis remains: {path.relative_to(ROOT)}: {content}")
+def check_markdown(path: Path, text: str, failures: list[str]) -> None:
     for match in re.finditer(r"!?\[[^\]]*\]\(([^)]+)\)", text):
         target = local_link_target(path, match.group(1))
         if target is not None and not target.exists():
             failures.append(f"missing local link: {path.relative_to(ROOT)} -> {match.group(1)}")
+    for stale in STALE_PUBLIC_PATHS:
+        if stale in text:
+            failures.append(f"stale public path in {path.relative_to(ROOT)}: {stale}")
 
 
-def _check_json(path: Path, parsed_json: dict[Path, Any], failures: list[str]) -> None:
-    try:
-        parsed_json[path] = json.loads(read_text(path))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        failures.append(f"JSON parse failed: {path.relative_to(ROOT)}: {error}")
-
-
-def _check_png(path: Path, failures: list[str]) -> None:
-    try:
-        if not path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
-            failures.append(f"invalid PNG signature: {path.relative_to(ROOT)}")
-    except OSError as error:
-        failures.append(f"cannot read PNG: {path.relative_to(ROOT)}: {error}")
-
-
-def _check_file(path: Path, parsed_json: dict[Path, Any], failures: list[str]) -> None:
+def check_file(path: Path, parsed_json: dict[Path, Any], failures: list[str]) -> None:
     suffix = path.suffix.lower()
-    text = read_text(path) if suffix in {".html", ".md", ".py", ".ts", ".tsx"} else None
-    if text is not None and "\N{EM DASH}" in text:
-        failures.append(f"prohibited em dash remains: {path.relative_to(ROOT)}")
     if suffix == ".json":
-        _check_json(path, parsed_json, failures)
-    elif suffix == ".md" and text is not None:
-        _check_markdown(path, text, failures)
-    elif suffix == ".png":
-        _check_png(path, failures)
+        try:
+            parsed_json[path] = json.loads(read_text(path))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            failures.append(f"JSON parse failed: {path.relative_to(ROOT)}: {error}")
+        return
+    if suffix == ".png":
+        try:
+            if not path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
+                failures.append(f"invalid PNG signature: {path.relative_to(ROOT)}")
+        except OSError as error:
+            failures.append(f"cannot read PNG: {path.relative_to(ROOT)}: {error}")
+        return
+    if suffix not in {".html", ".md", ".py", ".ts", ".tsx", ".yml", ".yaml"}:
+        return
+    text = read_text(path)
+    if "\N{EM DASH}" in text:
+        failures.append(f"prohibited em dash remains: {path.relative_to(ROOT)}")
+    if suffix == ".md":
+        check_markdown(path, text, failures)
 
 
 def check_files(files: list[Path], failures: list[str]) -> dict[Path, Any]:
     parsed_json: dict[Path, Any] = {}
     for path in files:
-        _check_file(path, parsed_json, failures)
+        check_file(path, parsed_json, failures)
     return parsed_json
 
 
-def check_public_scope(failures: list[str]) -> None:
-    for path in sorted(PUBLICLY_OBSOLETE_PATHS):
+def check_required_paths(failures: list[str]) -> None:
+    for path in sorted(REQUIRED_PATHS):
+        if not (ROOT / path).exists():
+            failures.append(f"required repository path is missing: {path}")
+    for path in (
+        Path("RELEASE_STATUS.md"), Path("src/__init__.py"),
+        Path("queuewright/profile.py"), Path("queuewright/compiler.py"),
+        Path("queuewright/blueprint.py"), Path("queuewright_studio/service.py"),
+    ):
         if (ROOT / path).exists():
-            failures.append(f"obsolete pre-alpha public lane remains: {path}")
+            failures.append(f"obsolete repository path remains: {path}")
 
 
 def check_git_metadata(failures: list[str]) -> None:
+    if GIT is None:
+        failures.append("git executable is not available")
+        return
     try:
         tracked = subprocess.run(
-            _git_command("ls-files", "-z"), cwd=ROOT, check=True, capture_output=True
+            [GIT, "ls-files", "-z"], cwd=ROOT, check=True, capture_output=True
         ).stdout.decode().split("\0")
     except (OSError, subprocess.CalledProcessError, UnicodeDecodeError) as error:
         failures.append(f"cannot inspect tracked filename metadata: {error}")
         return
     for name in filter(None, tracked):
-        if is_forbidden_tracked_path(Path(name)):
+        if (ROOT / name).exists() and is_forbidden_tracked_path(Path(name)):
             failures.append(f"tracked sensitive or excluded path: {name}")
 
 
-def _check_studio_catalogs(parsed_json: dict[Path, Any], failures: list[str]) -> None:
-    catalog = parsed_json.get(STUDIO_CATALOG)
-    capabilities = parsed_json.get(STUDIO_CAPABILITY_CATALOG)
-    _check_catalog_ids(catalog, "features", STUDIO_FEATURE_IDS, "feature", failures)
-    _check_catalog_ids(capabilities, "capabilities", STUDIO_CAPABILITY_IDS, "capability", failures)
+def check_package(failures: list[str]) -> None:
+    try:
+        project = tomllib.loads(read_text(PYPROJECT))
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        failures.append(f"cannot read pyproject.toml: {error}")
+        return
+    scripts = project.get("project", {}).get("scripts", {})
+    build_system = project.get("build-system", {})
+    package_data = project.get("tool", {}).get("setuptools", {}).get("package-data", {})
+    contract_data = (
+        package_data.get("queuewright.contracts", []) if isinstance(package_data, dict) else []
+    )
+    if scripts.get("queuewright") != "queuewright.cli:main":
+        failures.append("pyproject.toml must expose the queuewright console script")
+    if build_system.get("build-backend") != "setuptools.build_meta":
+        failures.append("pyproject.toml must use the setuptools build backend")
+    if not {"catalogs/*.json", "schemas/*.json", "schemas/README.md"} <= set(contract_data):
+        failures.append("pyproject.toml must package contract JSON and schema README data")
+    if ROOT_CONNECTION_SCHEMA.exists():
+        failures.append("active Queuewright wheel must not contain the connected-control schema")
 
 
-def _check_catalog_ids(catalog: Any, field: str, expected: set[str], name: str, failures: list[str]) -> None:
-    rows = catalog.get(field) if isinstance(catalog, dict) else None
-    if not isinstance(rows, list) or {row.get("id") for row in rows if isinstance(row, dict)} != expected:
-        failures.append(f"Studio {name} catalog must define the exact {len(expected)} {name} IDs")
+def python_release_version() -> str:
+    """The pyproject version is the single source of release identity."""
+    return str(tomllib.loads(read_text(PYPROJECT)).get("project", {}).get("version", ""))
 
 
-def _check_studio_package(parsed_json: dict[Path, Any], failures: list[str]) -> None:
+def semver_release_version(python_version: str) -> str:
+    """Map a PEP 440 pre-release (0.1.0a1) to its npm/SemVer spelling (0.1.0-alpha.1)."""
+    labels = {"a": "alpha", "b": "beta", "rc": "rc"}
+    match = re.fullmatch(r"(\d+\.\d+\.\d+)(?:(a|b|rc)(\d+))?", python_version)
+    if match is None:
+        return ""
+    base, label, number = match.groups()
+    return base if label is None else f"{base}-{labels[label]}.{number}"
+
+
+def check_release_identity(parsed_json: dict[Path, Any], failures: list[str]) -> None:
+    python_version = python_release_version()
+    release_version = semver_release_version(python_version)
+    if not release_version:
+        failures.append(f"pyproject.toml version is not a supported release: {python_version!r}")
+        return
     package = parsed_json.get(STUDIO_PACKAGE)
     lock = parsed_json.get(STUDIO_LOCK)
-    if not isinstance(package, dict) or package.get("version") != "0.1.0-alpha.1":
-        failures.append("Studio package version must match alpha candidate 0.1.0-alpha.1")
-    if not isinstance(lock, dict):
-        failures.append("Studio package-lock.json is required for a reproducible alpha")
-    elif lock.get("version") != "0.1.0-alpha.1":
-        failures.append("Studio lockfile version must match alpha candidate 0.1.0-alpha.1")
-    scripts = package.get("scripts") if isinstance(package, dict) else None
-    if not isinstance(scripts, dict) or not {"dev", "build"} <= set(scripts):
-        failures.append("Studio package must provide dev and build scripts")
-
-
-def _check_studio_network_surface(failures: list[str]) -> None:
-    html_text = read_text(STUDIO_HTML)
-    api_text = read_text(STUDIO_API)
-    vite_text = read_text(STUDIO_VITE)
-    if re.search(r"(?:src|href)=[\"']https?://", html_text):
-        failures.append("Studio HTML must not load remote resources")
-    _check_studio_fetch_surface(api_text, failures)
-    _check_studio_vite_surface(vite_text, failures)
-
-
-def _check_studio_fetch_surface(api_text: str, failures: list[str]) -> None:
-    fetch_paths = set(re.findall(r"fetch\(['\"]([^'\"]+)", api_text))
-    if fetch_paths != {
-        "/api/v1/catalog", "/api/v1/import-bundle", "/api/v1/compile-project",
-        "/api/v2/migrate-project", "/api/v2/compile-project",
-    }:
-        failures.append("Studio frontend fetch surface is not the exact local API")
-    for path in (ROOT / "studio-ui/src").glob("**/*"):
-        if path.suffix in {".ts", ".tsx"} and path != STUDIO_API and "fetch(" in read_text(path):
-            failures.append(f"Studio fetch call is outside api.ts: {path.relative_to(ROOT)}")
-
-def _check_studio_vite_surface(vite_text: str, failures: list[str]) -> None:
-    if "target: 'http://127.0.0.1:8765'" not in vite_text:
-        failures.append("Studio Vite proxy must target the loopback compiler")
-    if "host: '127.0.0.1'" not in vite_text or "strictPort: true" not in vite_text:
-        failures.append("Studio Vite server must use a strict loopback binding")
+    release_notes = ROOT / "docs" / "releases" / f"{release_version}.md"
+    if not isinstance(package, dict) or package.get("version") != release_version:
+        failures.append(f"Studio package version must match pyproject ({release_version})")
+    if not isinstance(lock, dict) or lock.get("version") != release_version:
+        failures.append(f"Studio lockfile version must match pyproject ({release_version})")
+    try:
+        if f"# Queuewright `{release_version}`" not in read_text(release_notes):
+            failures.append(f"release identity is missing from {release_notes.relative_to(ROOT)}")
+    except OSError as error:
+        failures.append(f"cannot read release identity from {release_notes.relative_to(ROOT)}: {error}")
 
 
 def check_studio_surface(parsed_json: dict[Path, Any], failures: list[str]) -> None:
-    _check_studio_catalogs(parsed_json, failures)
-    _check_studio_package(parsed_json, failures)
-    _check_studio_network_surface(failures)
+    package = parsed_json.get(STUDIO_PACKAGE)
+    lock = parsed_json.get(STUDIO_LOCK)
+    if not isinstance(package, dict) or not isinstance(lock, dict):
+        failures.append("Studio package and lockfile must be valid JSON")
+    else:
+        scripts = package.get("scripts")
+        if not isinstance(scripts, dict) or not {
+            "dev", "test", "build", "build:demo"
+        } <= set(scripts):
+            failures.append("Studio package must expose dev, test, build, and build:demo scripts")
+        if package.get("version") != lock.get("version"):
+            failures.append("Studio package and lockfile versions must match")
+    try:
+        html = read_text(STUDIO_HTML)
+        vite = read_text(STUDIO_VITE)
+    except OSError as error:
+        failures.append(f"cannot inspect Studio surface: {error}")
+        return
+    if re.search(r"(?:src|href)=[\"']https?://", html):
+        failures.append("Studio HTML must not load remote resources")
+    if "host: '127.0.0.1'" not in vite or "strictPort: true" not in vite:
+        failures.append("Studio Vite server must use strict loopback binding")
+    if "'/api/v1'" not in vite or "'/api/v2'" not in vite:
+        failures.append("Studio Vite configuration must proxy both API versions")
 
 
-def check_control_dependency(failures: list[str]) -> None:
-    requirements = read_text(CONTROL_REQUIREMENTS).splitlines()
-    active = [line.strip() for line in requirements if line.strip() and not line.startswith("#")]
-    if active != ["cryptography==50.0.0"]:
-        failures.append("connected-mode cryptography dependency must be pinned")
-    workflow = read_text(CI_WORKFLOW)
-    if "python3 -m pip install --requirement requirements-control.txt" not in workflow:
-        failures.append("CI must install the connected-mode test dependency")
-    for action in ("actions/checkout", "actions/setup-python"):
-        if not re.search(
-            rf"uses: {re.escape(action)}@[0-9a-f]{{40}}\s+# v6", workflow
-        ):
-            failures.append(f"CI action must use a reviewed commit pin: {action}")
-
-
-def check_reusable_config(failures: list[str]) -> None:
-    commands = (
-        ([sys.executable, "-m", "queuewright", "self-test"], "self-test: ok"),
-        ([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"], None),
-    )
-    for command, expected in commands:
+def check_workflows(failures: list[str]) -> None:
+    for workflow in (CI_WORKFLOW, PAGES_WORKFLOW):
         try:
-            result = subprocess.run(
-                command, cwd=ROOT, capture_output=True, text=True, timeout=30, check=False
-            )
-        except (OSError, subprocess.TimeoutExpired) as error:
-            failures.append(f"repository check could not run: {error}")
+            text = read_text(workflow)
+        except OSError as error:
+            failures.append(f"cannot inspect workflow {workflow.relative_to(ROOT)}: {error}")
             continue
-        if result.returncode != 0:
-            failures.append(f"repository check failed: {(result.stderr or result.stdout).strip()}")
-        elif expected is not None and result.stdout.strip() != expected:
-            failures.append(f"repository check returned unexpected output: {result.stdout.strip()!r}")
+        for action, revision in re.findall(r"uses:\s+([^\s@]+)@([^\s#]+)", text):
+            if action.startswith("actions/") and not re.fullmatch(r"[0-9a-f]{40}", revision):
+                failures.append(
+                    f"workflow action is not commit pinned: {workflow.relative_to(ROOT)} -> {action}"
+                )
+
+
+def check_control_layout(failures: list[str]) -> None:
+    try:
+        control = tomllib.loads(read_text(CONTROL_ROOT / "pyproject.toml"))
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        failures.append(f"cannot read isolated control package metadata: {error}")
+        return
+    if control.get("project", {}).get("version") != python_release_version():
+        failures.append("isolated control package version must match pyproject.toml")
+    package_data = control.get("tool", {}).get("setuptools", {}).get("package-data", {})
+    control_data = package_data.get("queuewright_control", []) if isinstance(package_data, dict) else []
+    if "schemas/*.json" not in control_data or not CONTROL_CONNECTION_SCHEMA.is_file():
+        failures.append("isolated control package must own and package the connection schema")
 
 
 def main() -> int:
     failures: list[str] = []
     files = list(active_files())
     parsed_json = check_files(files, failures)
-    check_public_scope(failures)
+    check_required_paths(failures)
     check_git_metadata(failures)
+    check_package(failures)
+    check_release_identity(parsed_json, failures)
     check_studio_surface(parsed_json, failures)
-    check_control_dependency(failures)
-    check_reusable_config(failures)
-    if (ROOT / ".env.example").exists():
-        print(
-            "NOTE: .env.example content is excluded from automated inspection; "
-            "manual owner review is required"
-        )
+    check_workflows(failures)
+    check_control_layout(failures)
     if failures:
         print(f"FAIL: {len(failures)} issue(s)")
-        for failure in failures:
-            print(f"- {failure}")
+        print(*(f"- {failure}" for failure in failures), sep="\n")
         return 1
-    json_count = sum(path.suffix.lower() == ".json" for path in files)
     print(
-        f"PASS: {len(files)} public-alpha files; {json_count} JSON documents; "
-        "links, assets, public scope, Studio contracts, and tracked Git metadata verified"
+        f"PASS: {len(files)} files; structural policy, packaged contracts, Studio surface, "
+        "and Git metadata verified"
     )
     return 0
 

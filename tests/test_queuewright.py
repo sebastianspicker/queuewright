@@ -10,13 +10,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from queuewright import compile_plan, validate_profile
 from queuewright.cli import main
-from queuewright.compiler import compile_plan
 from queuewright.errors import ConfigurationError
-from queuewright.profile import validate_profile
 
 ROOT = Path(__file__).resolve().parents[1]
-EXAMPLE = ROOT / "profiles" / "example"
+EXAMPLE = ROOT / "queuewright" / "examples" / "minimal"
 
 
 def bundle() -> tuple[dict[str, object], dict[str, object]]:

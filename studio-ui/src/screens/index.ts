@@ -1,8 +1,0 @@
-export { Start } from './Start'
-export { Structure } from './Structure'
-export { Access } from './Access'
-export { Features } from './Features'
-export { Review } from './Review'
-export { Organization } from './Organization'
-export { Governance } from './Governance'
-export { Readiness } from './Readiness'

@@ -5,11 +5,11 @@ import {
   Plus,
   University,
 } from 'lucide-react'
-import { mutateProject } from '../project-model'
-import { useStudio } from '../studio-state'
-import { PageHeader } from '../ui'
-import { ImportControl } from '../shell/ImportControl'
-import type { SchemaVersion } from '../types'
+import { renameProject, setTargetSchema } from '../editor/model'
+import { useStudio } from '../editor/context'
+import { ImportControl } from '../components/ImportControl'
+import { PageHeader } from '../components/ui'
+import type { SchemaVersion } from '../contracts'
 
 export function Start() {
   const {
@@ -20,10 +20,11 @@ export function Start() {
     importError,
     updateProject,
   } = useStudio()
-  const root = project.manifest.groups.find((group) => group.parent === undefined)
+  const { bundle } = project
+  const root = bundle.manifest.groups.find((group) => group.parent === undefined)
   const canUseSchema10 = Boolean(root)
-    && project.manifest.groups.filter((group) => group.kind === 'container').length === 1
-    && project.manifest.groups.every((group) =>
+    && bundle.manifest.groups.filter((group) => group.kind === 'container').length === 1
+    && bundle.manifest.groups.every((group) =>
       group.key === root?.key || (group.kind === 'leaf' && group.parent === root?.key),
     )
   return (
@@ -38,18 +39,14 @@ export function Start() {
           Project name
           <input
             value={project.name}
-            onChange={(event) => updateProject(mutateProject(project, (draft) => {
-              draft.name = event.target.value.trimStart() || 'Untitled configuration'
-            }))}
+            onChange={(event) => updateProject(renameProject(project, event.target.value.trimStart() || 'Untitled configuration'))}
           />
         </label>
         <label className="field">
           Target schema
           <select
             value={project.target_schema_version}
-            onChange={(event) => updateProject(mutateProject(project, (draft) => {
-              draft.target_schema_version = event.target.value as SchemaVersion
-            }))}
+            onChange={(event) => updateProject(setTargetSchema(project, event.target.value as SchemaVersion))}
           >
             <option value="1.1">1.1 · nested units</option>
             <option value="1.0" disabled={!canUseSchema10}>1.0 · flat legacy structure</option>

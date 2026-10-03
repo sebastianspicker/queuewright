@@ -1,170 +1,154 @@
 # Queuewright Studio
 
-Queuewright Studio is a React application for editing local Zammad
-configuration projects. It uses a loopback Python service for validation,
-V1 plan compilation, V1-to-V2 migration, and V2 graph compilation.
+Queuewright Studio is the local browser editor for Queuewright projects. It has
+no tenant URL field, credential input, discovery request, or apply operation.
 
-Studio has no tenant URL field, credential input, discovery request, or apply
-operation.
-
-## Workflow
-
-The interface has eight steps:
-
-1. Start: create, open, or import a local project.
-2. Organization: record operating context and ownership.
-3. Services: edit one rooted tree of organizational units and ticket-bearing
-   services.
-4. Access: review organizations, synthetic populations, roles, and leaf-level
-   access.
-5. Policies: configure fields, views, support tooling, automation, reporting,
-   handoff, and review controls.
-6. Governance: record completion and delivery status for each capability
-   family.
-7. Readiness: review synthetic test coverage, unresolved decisions, manual
-   work, unsupported areas, and the current graph.
-8. Review: validate and download the V1 project, V2 Blueprint, profile,
-   desired state, symbolic plan, and graph.
-
-Capability accounting records whether a configuration area is automated,
-manual, verification-only, or unsupported. It does not imply a Zammad API
-implementation.
-
-## Create, open, and import projects
-
-The start screen provides three ways to begin:
-
-- Select `Blank project` to create an empty project.
-- Select `University template` to load the bundled example.
-- Select `Import` and choose one or two JSON files.
-
-The create actions require the loopback compiler service. Projects saved in the
-browser appear under `Projects in this browser`; select one to reopen it.
-
-Import accepts any one of these forms:
-
-- one Blueprint V2 document with `project_schema_version` set to `2.0`;
-- one V1 project document with `project_schema_version` set to `1.0`;
-- one object containing both `profile` and `manifest`;
-- a profile JSON file and its manifest JSON file selected together.
-
-Each imported file must be no larger than 2 MiB. Studio validates and compiles
-imported data through the loopback service. It derives the alternate project
-representation so the V1 and V2 editors remain available. Invalid stored
-projects are quarantined instead of being opened.
-
-## Runtime
-
-Studio consists of two processes:
+## Local runtime
 
 ```text
 browser at 127.0.0.1:5173
   -> Vite proxy for /api/v1 and /api/v2
-  -> Python service at 127.0.0.1:8765
+  -> Queuewright API at 127.0.0.1:8765
 ```
 
-Vite uses strict loopback binding and an explicit filesystem allowlist. The
-Python service rejects non-loopback construction, validates `Host` and
-`Origin`, accepts exact `application/json` POST bodies up to 2 MiB, and returns
-`Cache-Control: no-store`.
+From the repository root, install the Python and Node development dependencies,
+then start the two processes in separate terminals:
 
-The service exposes:
+```bash
+python3 -m pip install '.[dev]'
+npm --prefix studio-ui ci
+python3 -m queuewright studio
+```
+
+```bash
+npm --prefix studio-ui run dev
+```
+
+Open `http://127.0.0.1:5173`. Stop either process with `Ctrl-C`. Both ports
+are fixed and must be available. `http://127.0.0.1:5173` is the only allowed
+development `Origin`.
+
+The API validates loopback `Host` and `Origin`, accepts exact
+`application/json` request bodies up to 2 MiB and 64 container nesting levels, and returns
+`Cache-Control: no-store`. It provides no authentication, TLS, request log,
+metrics, or hosted-service configuration because it is a local development
+service.
+
+Use `GET http://127.0.0.1:8765/api/v1/health` to check the API process.
+
+## HTTP interface
 
 | Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/api/v1/health` | Service health |
-| `GET` | `/api/v1/catalog` | V1 feature catalog |
+| --- | --- | --- |
+| `GET` | `/api/v1/health` | Report local service health |
+| `GET` | `/api/v1/catalog` | Return the feature catalog |
 | `POST` | `/api/v1/import-bundle` | Validate a profile and manifest and create a V1 project |
-| `POST` | `/api/v1/compile-project` | Validate a V1 project and compile local artifacts |
-| `POST` | `/api/v2/migrate-project` | Convert a valid V1 project to Blueprint V2 |
-| `POST` | `/api/v2/compile-project` | Validate Blueprint V2 and compile its graph |
+| `POST` | `/api/v1/compile-project` | Compile a V1 project and compatibility artifacts |
+| `POST` | `/api/v2/migrate-project` | Convert a V1 project to Blueprint V2 |
+| `POST` | `/api/v2/compile-project` | Compile a V2 project through the legacy V2 route |
+| `POST` | `/api/v2/compile` | Normalize a raw bundle, V1 project, or authored V2 draft and compile canonical V2 |
+| `POST` | `/api/v2/compile-editor` | Return the same compilation with duplicate transport values omitted |
 
-Other paths and methods return structured JSON errors.
+The browser calls `GET /api/v1/catalog` and `POST /api/v2/compile-editor` through
+`studio-ui/src/api/client.ts`. The other routes remain compatibility and
+inspection surfaces.
 
-## Project formats
+The editor response uses `representation: "editor-1"`. Its bundle is present
+only at `project.bundle`. Graph operation nodes omit `desired`; the client
+restores it from the plan operation with the same `id`. Capability nodes retain
+their own `desired` values. Hashes refer to the complete canonical artifacts,
+and the client restores those artifacts before presenting or exporting them.
+The packaged `queuewright-editor-compile.schema.json` describes this response.
+Invalid JSON and parser numeric or nesting limits return a structured HTTP 400
+`invalid_json` error.
 
-A V1 project contains project metadata, a profile, a desired-state manifest,
-resource ownership, and feature state.
+## Workflow and project formats
 
-A Blueprint V2 project contains exactly:
+The interface moves through Start, Organization, Services, Access, Policies,
+Governance, Readiness, and Review. Capability status records design and review
+state; it does not imply API support or tenant execution.
 
-```text
-project_schema_version
-id
-name
-target_schema_version
-workbook
-extensions
-bundle
-```
+Blueprint V2 is the authoritative editable bundle. It contains project
+metadata, the validated V1-compatible bundle, authored organization data,
+capability decisions, and extensions. Compiler-owned services, policies, UAT,
+and catalog metadata are regenerated projections and must not be edited as a
+second source of truth.
 
-The `bundle` retains the validated V1 profile, manifest, ownership map, and
-feature state. The workbook contains organization context plus compiler-derived
-service, policy, capability, and test views.
+Studio accepts a raw profile and manifest, a V1 project, or a Blueprint V2
+document. V1 is validated and migrated before the editor persists it. Local
+completion may be `decision_required`, `ready`, or `blocked`. The validator
+rejects `applied` and `verified` because the active product cannot produce
+external evidence.
 
-Offline projects may record `decision_required`, `ready`, or `blocked`.
-`applied` and `verified` are rejected because those states require external
-evidence that Studio cannot provide.
+## Browser state
 
-The compiler rejects missing or extra ownership entries, unknown owners,
-disabled dependencies, URLs, credential-shaped keys, non-JSON values, and
-changes to derived workbook sections.
+Drafts are unencrypted local records in the `queuewright-studio` IndexedDB
+database for the `127.0.0.1:5173` origin. The `projects` store is authoritative;
+a draft and its active selection are saved in one transaction. Database version
+4 copies missing legacy `blueprints` records into `projects` without replacing
+existing records, and retains the legacy store for recovery.
 
-## Browser storage and downloads
+The active draft is validated and opened before background migrations run.
+At most two V1 migrations run concurrently; only successful V1 migrations are
+rewritten, without changing the active selection or overwriting intervening
+edits. Invalid records remain preserved for recovery, and a failed active draft
+opens a seed with a different ID. V2 library records are validated when opened.
+The interface has no delete-all control; clear the site's browser data to remove
+drafts.
 
-Studio stores projects in IndexedDB database `queuewright-studio`, version 3.
-It uses separate stores for V1 projects, V2 Blueprints, and the active project
-identifier.
+Do not place credentials, tenant URLs, customer data, or approval evidence in
+projects or drafts.
 
-The current interface has no deletion control. Clear site data for
-`127.0.0.1:5173` to remove stored projects.
+## Compatibility surface
 
-Downloads remain disabled until both the V1 plan and V2 graph compile for the
-current project revision. Compilation returns local JSON artifacts only.
+`python3 -m queuewright_studio` delegates to `python3 -m queuewright studio`
+and rejects unknown arguments; the `queuewright_studio` package re-exports
+`StudioService` and `create_server` for that entry only and is removed at the
+first tagged release. New code should import from `queuewright.studio` or run
+`python3 -m queuewright studio`.
 
-## Run locally
+The V1 and legacy V2 HTTP routes remain supported compatibility surfaces.
+Blueprint V2 and `POST /api/v2/compile` are the canonical application path.
 
-From the repository root:
+## Static demo
 
-```bash
-python3 -m queuewright_studio
-```
+`npm --prefix studio-ui run build:demo` sets `VITE_STATIC_DEMO=true` and
+builds the client for the `/queuewright/` Pages base path. The demo uses
+bundled fictional data, simulates command-capable actions, and has no API or
+browser persistence. The Pages workflow deploys only `studio-ui/dist`.
 
-In another terminal:
+## Interface conventions
 
-```bash
-cd studio-ui
-npm ci
-npm run dev
-```
+- Use Queuewright for the product and Queuewright Studio for the browser
+  application.
+- `ready` means locally valid for review, not applied or externally verified.
+- Use text and structure in addition to color for status.
+- Preserve visible keyboard focus and reduced-motion behavior.
 
-Open `http://127.0.0.1:5173`.
+WCAG conformance, cross-browser behavior, and responsive layout remain manual
+release checks.
+
+## Screenshots
+
+![Queuewright Studio readiness view](screenshots/studio-readiness.png)
+
+<img src="screenshots/studio-mobile.png" alt="Queuewright Studio service structure editor at a mobile viewport" width="390">
+
+These images contain bundled fictional data and document visible states; they
+are not browser-test evidence. Before replacing them, run the Studio builds,
+review desktop and mobile clipping and labels, confirm that no private or
+unrelated desktop content is visible, and run
+`python3 -B scripts/verify_repo.py`.
 
 ## Verification
 
-Build the frontend:
-
 ```bash
-cd studio-ui
-npm run build
+npm --prefix studio-ui run typecheck
+npm --prefix studio-ui run test
+npm --prefix studio-ui run build
+npm --prefix studio-ui run build:demo
 ```
 
-Backend API and boundary tests are part of the Python suite:
-
-```bash
-python3 -m unittest discover -s tests -v
-```
-
-## Related files
-
-| Path | Purpose |
-|---|---|
-| `studio-ui/src/api.ts` | Frontend HTTP boundary |
-| `studio-ui/src/studio-state.tsx` | Project and compilation state |
-| `studio-ui/src/storage.ts` | IndexedDB persistence |
-| `queuewright_studio/service.py` | Loopback service and endpoint dispatch |
-| `queuewright/blueprint.py` | V2 validation, migration, and graph compilation |
-| `studio/catalog/features.json` | V1 feature catalog |
-| `studio/catalog/capabilities.json` | Capability accounting |
-| `schemas/queuewright-project.schema.json` | V1 project schema |
-| `schemas/queuewright-project-v2.schema.json` | V2 project schema |
+Real-HTTP API behavior is covered by `StudioHTTPTests` in
+`tests/test_queuewright_studio.py`, which replaced the former smoke script. The
+complete active gate is `bash scripts/verify`.

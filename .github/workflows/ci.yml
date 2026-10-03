@@ -9,7 +9,27 @@ permissions:
   contents: read
 
 jobs:
-  python:
+  active:
+    name: Active verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: studio-ui/package-lock.json
+      - run: python3 -m pip install '.[dev]'
+      - run: npm ci
+        working-directory: studio-ui
+      - run: bash scripts/verify
+
+  connected-control:
+    name: Isolated connected-control verification
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -17,8 +37,6 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.11"
-      - run: python3 -m pip install --requirement requirements-control.txt
-      - run: python3 -m queuewright self-test
-      - run: python3 -m unittest discover -s tests -v
-      - run: python3 scripts/verify_repo.py
-      - run: bash scripts/verify_git_ignores.sh
+      - run: python3 -m pip install build ./experimental/connected_control
+      - run: python3 -m unittest discover -s experimental/connected_control/tests -p 'test_*.py' -v
+      - run: python3 scripts/verify_control_package.py

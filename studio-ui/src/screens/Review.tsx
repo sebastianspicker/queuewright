@@ -2,8 +2,8 @@ import {
   Download,
   ShieldCheck,
 } from 'lucide-react'
-import { useStudio } from '../studio-state'
-import { PageHeader } from '../ui'
+import { useStudio } from '../editor/context'
+import { PageHeader } from '../components/ui'
 import { download } from './download'
 
 function issueText(issue: string | { code: string; path: string; message: string }): string {
@@ -14,7 +14,6 @@ export function Review() {
   const {
     project,
     result,
-    blueprint,
     blueprintResult,
     dirty,
     compileError,
@@ -24,7 +23,7 @@ export function Review() {
   } = useStudio()
   const ready = Boolean(result && blueprintResult) && !dirty && !compiling
   const decisions = Object.values(
-    blueprint?.workbook.capability_decisions ?? {},
+    project.workbook.capability_decisions,
   )
   const unresolved = decisions.filter((decision) =>
     decision.enabled
@@ -34,15 +33,15 @@ export function Review() {
   const artifacts: Array<[string, unknown]> = result
     ? [
         [
-          `${project.profile.profile_key}.blueprint-v2.json`,
+          `${project.bundle.profile.profile_key}.blueprint-v2.json`,
           blueprintResult?.project,
         ],
-        [result.artifact_filenames.at(0) ?? '', result.project],
-        [result.artifact_filenames.at(1) ?? '', result.profile],
-        [result.artifact_filenames.at(2) ?? '', result.manifest],
-        [result.artifact_filenames.at(3) ?? '', result.plan],
+        [`${project.bundle.profile.profile_key}.project-bundle.json`, blueprintResult?.bundle],
+        [`${project.bundle.profile.profile_key}.profile.json`, blueprintResult?.bundle.profile],
+        [`${project.bundle.profile.profile_key}.desired-state.json`, blueprintResult?.bundle.manifest],
+        [`${project.bundle.profile.profile_key}.plan.json`, blueprintResult?.plan],
         [
-          `${project.profile.profile_key}.configuration-graph.json`,
+          `${project.bundle.profile.profile_key}.configuration-graph.json`,
           blueprintResult?.graph,
         ],
       ]
@@ -68,7 +67,7 @@ export function Review() {
                 ? 'Validating…'
                 : compileError ?? 'Edits are awaiting validation'}
           </p>
-          {result?.issues.map((issue) => <p key={issueText(issue)}>{issueText(issue)}</p>)}
+          {result?.issues?.map((issue) => <p key={issueText(issue)}>{issueText(issue)}</p>)}
         </div>
         <div>
           <h2>Coverage</h2>
@@ -90,7 +89,7 @@ export function Review() {
       </p>
       <details className="json-preview">
         <summary>Blueprint V2 JSON preview</summary>
-        <pre>{JSON.stringify(blueprintResult?.project ?? blueprint, null, 2)}</pre>
+        <pre>{JSON.stringify(blueprintResult?.project ?? project, null, 2)}</pre>
       </details>
       <div className="export-list">
         {(['Blueprint', 'Project', 'Profile', 'Desired state', 'Inert plan', 'Configuration graph'] as const).map((label, index) => (

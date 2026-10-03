@@ -344,8 +344,7 @@
   color: var(--muted-strong);
 }
 
-.step-marker,
-.step-idx {
+.step-marker {
   position: relative;
   z-index: 1;
   width: 28px;
@@ -370,9 +369,7 @@
 }
 
 .step.active .step-marker,
-.step.current .step-marker,
-.step.active .step-idx,
-.step.current .step-idx {
+.step.current .step-marker {
   color: white;
   border-color: var(--brand);
   background: var(--brand);
@@ -388,8 +385,7 @@
   display: block;
 }
 
-.step.done .step-marker,
-.step.done .step-idx {
+.step.done .step-marker {
   color: var(--verified-ink);
   font-size: 11px;
   border-color: oklch(0.82 0.05 174);
@@ -409,8 +405,7 @@
   box-shadow: 0 1px 0 oklch(0.88 0.015 258 / 0.7);
 }
 
-.step.current .step-marker,
-.step.current .step-idx {
+.step.current .step-marker {
   color: white;
   border-color: var(--brand);
   background: var(--brand);

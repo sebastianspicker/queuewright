@@ -1,8 +1,8 @@
-"""Offline validation and symbolic planning for Zammad configuration bundles."""
+"""Deliberate public API for offline Queuewright validation and planning."""
 
-from .compiler import compile_plan
+from .configuration import is_forbidden_local_path, load_profile, validate_profile
 from .errors import ConfigurationError
-from .profile import is_forbidden_local_path, load_profile, validate_profile
+from .planning.compiler import compile_plan
 
 __all__ = [
     "ConfigurationError",

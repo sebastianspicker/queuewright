@@ -106,31 +106,6 @@
   text-overflow: ellipsis;
 }
 
-.key-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 0 6px 0 10px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--surface);
-}
-
-.key-chip .glyph {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.key-chip code {
-  flex: 1;
-  color: var(--ink);
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-}
-
 .inspector-save {
   width: 100%;
   margin-top: 16px;

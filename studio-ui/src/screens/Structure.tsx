@@ -21,13 +21,13 @@ import {
   Tag,
   University,
 } from 'lucide-react'
-import { addGroup, reorderGroup } from '../project-model'
-import { useStudio } from '../studio-state'
-import { PageHeader } from '../ui'
+import { addGroup, reorderGroup } from '../editor/model'
+import { useStudioStructure } from '../editor/context'
+import { PageHeader } from '../components/ui'
 import { useStateSet } from './useStateSet'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
-import type { GroupResource } from '../types'
+import type { GroupResource } from '../contracts'
 
 interface TreeItem {
   group: GroupResource
@@ -40,11 +40,18 @@ export function flattenTree(
 ): TreeItem[] {
   const root = groups.find((group) => group.parent === undefined)
   if (!root) return groups.map((group) => ({ group, depth: 0 }))
+  const children = new Map<string, GroupResource[]>()
+  for (const group of groups) {
+    if (group.parent === undefined) continue
+    const siblings = children.get(group.parent) ?? []
+    siblings.push(group)
+    children.set(group.parent, siblings)
+  }
   const output: TreeItem[] = []
   const visit = (group: GroupResource, depth: number) => {
     output.push({ group, depth })
     if (group.kind === 'container' && expanded.has(group.key)) {
-      for (const child of groups.filter((item) => item.parent === group.key)) {
+      for (const child of children.get(group.key) ?? []) {
         visit(child, depth + 1)
       }
     }
@@ -129,18 +136,19 @@ function SortableTreeRow({
 }
 
 export function Structure() {
-  const { project, selectedGroup, dispatch, updateProject } = useStudio()
+  const { project, selectedGroup, selectGroup, updateProject } = useStudioStructure()
+  const { bundle } = project
   const expanded = useStateSet(
-    project.manifest.groups
+    bundle.manifest.groups
       .filter((group) => group.kind === 'container')
       .map((group) => group.key),
   )
-  const items = flattenTree(project.manifest.groups, expanded.value)
-  const unitCount = project.manifest.groups.filter((group) => group.kind === 'container').length
-  const serviceCount = project.manifest.groups.filter((group) => group.kind === 'leaf').length
+  const items = useMemo(() => flattenTree(bundle.manifest.groups, expanded.value), [bundle.manifest.groups, expanded.value])
+  const unitCount = bundle.manifest.groups.filter((group) => group.kind === 'container').length
+  const serviceCount = bundle.manifest.groups.filter((group) => group.kind === 'leaf').length
   useEffect(() => {
     expanded.replace(
-      project.manifest.groups
+      bundle.manifest.groups
         .filter((group) => group.kind === 'container')
         .map((group) => group.key),
     )
@@ -185,7 +193,7 @@ export function Structure() {
           className="button quiet"
           type="button"
           onClick={() => expanded.replace(
-            project.manifest.groups
+            bundle.manifest.groups
               .filter((group) => group.kind === 'container')
               .map((group) => group.key),
           )}
@@ -206,7 +214,7 @@ export function Structure() {
                 item={item}
                 selected={item.group.key === selectedGroup}
                 expanded={expanded.value.has(item.group.key)}
-                onSelect={() => dispatch({ type: 'group:select', id: item.group.key })}
+                onSelect={() => selectGroup(item.group.key)}
                 onExpand={() => expanded.toggle(item.group.key)}
                 key={item.group.key}
               />

@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
+import contextlib
 import copy
+import io
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
+from queuewright.cli import main
+from queuewright.configuration import validate_loaded_profile
 from queuewright.errors import ConfigurationError
-from queuewright.profile import validate_loaded_profile
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def example_loaded() -> dict[str, object]:
-    root = ROOT / "profiles" / "example"
+    root = ROOT / "queuewright" / "examples" / "minimal"
     return {
         "profile": json.loads((root / "profile.json").read_text(encoding="utf-8")),
         "manifest": json.loads((root / "desired-state.json").read_text(encoding="utf-8")),
@@ -51,3 +55,45 @@ class ProfileValidationTests(unittest.TestCase):
                 mutate(loaded)
                 with self.assertRaisesRegex(ConfigurationError, message):
                     validate_loaded_profile(loaded)  # type: ignore[arg-type]
+
+
+def set_role_to_list(loaded: dict[str, object]) -> None:
+    loaded["manifest"]["users"]["agents"][0]["role"] = []
+
+
+def set_group_kind_to_object(loaded: dict[str, object]) -> None:
+    loaded["manifest"]["groups"][1]["kind"] = {}
+
+
+def set_customer_organization_to_list(loaded: dict[str, object]) -> None:
+    loaded["manifest"]["users"]["customers"][0]["organization"] = []
+
+
+class ValidationTotalityTests(unittest.TestCase):
+    def test_wrongly_shaped_values_raise_configuration_error(self) -> None:
+        for mutate in (
+            set_role_to_list,
+            set_group_kind_to_object,
+            set_customer_organization_to_list,
+        ):
+            with self.subTest(mutation=mutate.__name__):
+                loaded = example_loaded()
+                mutate(loaded)
+                with self.assertRaises(ConfigurationError):
+                    validate_loaded_profile(loaded)
+
+    def test_cli_reports_wrongly_shaped_bundle_as_usage_error(self) -> None:
+        loaded = example_loaded()
+        set_role_to_list(loaded)
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            (target / "desired-state.json").write_text(
+                json.dumps(loaded["manifest"]), encoding="utf-8"
+            )
+            (target / "profile.json").write_text(json.dumps(loaded["profile"]), encoding="utf-8")
+            with (
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit) as raised,
+            ):
+                main(["validate", str(target / "profile.json")])
+        self.assertEqual(raised.exception.code, 2)

@@ -1,22 +1,49 @@
 # Release procedure
 
-Queuewright has no published release or package artifact. A source prerelease
-must be built from one reviewed commit.
+Queuewright has no automated package-publication or GitHub Release workflow.
+The Pages workflow deploys only the client-side Studio demo. Tags, release
+notes, and any package publication are manual maintainer actions.
 
-1. Confirm the version in `studio-ui/package.json`,
-   `studio-ui/package-lock.json`, `CHANGELOG.md`, and the release notes.
-2. Review the complete file manifest and ignored-file boundary.
-3. Review all publishable configuration files for credentials and private
-   data.
-4. Review Python and npm dependency versions and licenses.
-5. Complete `RELEASE_CHECKLIST.md`.
-6. Create the candidate commit.
-7. Run every gate again from that exact commit.
-8. Push the reviewed branch.
-9. Create tag `v0.1.0-alpha.1`.
-10. Publish a GitHub prerelease using
-    `docs/releases/0.1.0-alpha.1.md`.
+Prepare a release from one reviewed commit and complete every applicable item
+below from that exact commit. Do not infer tenant operation, hosted API
+behavior, browser compatibility, or accessibility conformance from local
+automated checks.
 
-Restart verification if any check changes the working tree. Do not publish when
-clean installation, tests, browser checks, screenshots, security review, or
-dependency review remain incomplete.
+## Candidate review
+
+- [ ] Review the complete commit manifest and ignored-file boundary.
+- [ ] Review examples, documentation, and screenshots for fictional data only.
+- [ ] Review resolved Python and npm dependency licenses and advisories.
+- [ ] Confirm GitHub private vulnerability reporting is available.
+- [ ] Confirm documentation paths, commands, versions, and limitations match
+  the candidate.
+
+## Automated checks
+
+```bash
+python3 -m pip install '.[dev]'
+npm --prefix studio-ui ci
+bash scripts/verify
+python3 -m pip install ./experimental/connected_control
+python3 -m unittest discover -s experimental/connected_control/tests \
+  -p 'test_*.py' -v
+python3 scripts/verify_control_package.py
+git diff --check
+```
+
+## Manual Studio review
+
+- [ ] Review desktop and mobile layouts, keyboard flow, visible focus, zoom,
+  clipping, reduced motion, and loading, empty, error, and unavailable-service
+  states.
+- [ ] Confirm screenshots contain only current fictional data and no unrelated
+  desktop content.
+- [ ] Confirm the static demo performs no API request or browser persistence.
+
+## Publication
+
+- [ ] Re-run all checks from the exact candidate commit.
+- [ ] Confirm GitHub Actions are pinned to immutable commits.
+- [ ] Create the intended tag and release notes manually.
+- [ ] Verify the resulting public artifacts and Pages deployment separately;
+  local checks do not prove remote publication.

@@ -5,15 +5,15 @@ import {
   ClipboardCheck,
   Workflow,
 } from 'lucide-react'
-import { useStudio } from '../studio-state'
-import { PageHeader } from '../ui'
+import { useStudio } from '../editor/context'
+import { PageHeader } from '../components/ui'
 import { graphSummary, title } from './capability-meta'
 
 export function Readiness() {
-  const { blueprint, blueprintResult } = useStudio()
-  const decisions = blueprint ? Object.entries(blueprint.workbook.capability_decisions) : []
-  const synthetic = blueprint?.bundle.manifest.users
-  const scenarios = blueprint?.bundle.profile.uat.scenarios ?? []
+  const { project, blueprintResult } = useStudio()
+  const decisions = Object.entries(project.workbook.capability_decisions)
+  const synthetic = project.bundle.manifest.users
+  const scenarios = project.bundle.profile.uat.scenarios
   const manual = decisions.filter(([, decision]) => decision.enabled && decision.delivery === 'guided_manual')
   const unsupported = decisions.filter(([, decision]) => decision.delivery === 'unsupported')
   const blocked = decisions.filter(([, decision]) => decision.completion === 'blocked')

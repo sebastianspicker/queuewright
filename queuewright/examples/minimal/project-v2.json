@@ -1,0 +1,646 @@
+{
+  "bundle": {
+    "feature_state": {
+      "access_matrix": {
+        "enabled": true,
+        "settings": {
+          "levels": [
+            "none",
+            "read",
+            "create",
+            "work"
+          ]
+        }
+      },
+      "checklists": {
+        "enabled": true,
+        "settings": {}
+      },
+      "cross_department_handoff": {
+        "enabled": false,
+        "settings": {
+          "modes": [
+            "consultation",
+            "transfer",
+            "sanitized_child",
+            "split_work"
+          ]
+        }
+      },
+      "dummy_users_uat": {
+        "enabled": true,
+        "settings": {}
+      },
+      "group_classification": {
+        "enabled": false,
+        "settings": {}
+      },
+      "macros": {
+        "enabled": true,
+        "settings": {}
+      },
+      "organization_classification": {
+        "enabled": false,
+        "settings": {}
+      },
+      "overviews": {
+        "enabled": true,
+        "settings": {}
+      },
+      "report_profiles": {
+        "enabled": true,
+        "settings": {}
+      },
+      "scheduled_reviews": {
+        "enabled": false,
+        "settings": {}
+      },
+      "sensitive_area_handling": {
+        "enabled": false,
+        "settings": {}
+      },
+      "ticket_fields": {
+        "enabled": true,
+        "settings": {
+          "customer_entry_points": []
+        }
+      },
+      "triggers": {
+        "enabled": true,
+        "settings": {}
+      },
+      "user_classification": {
+        "enabled": false,
+        "settings": {}
+      }
+    },
+    "manifest": {
+      "checklist_templates": [
+        {
+          "active": false,
+          "items": [
+            "Confirm owner and next step"
+          ],
+          "key": "standard_intake",
+          "name": "Example Prototype · Checklist · Standard intake"
+        }
+      ],
+      "groups": [
+        {
+          "active": true,
+          "key": "service",
+          "kind": "container",
+          "name": "Example Prototype · Service"
+        },
+        {
+          "active": true,
+          "key": "service_general",
+          "kind": "leaf",
+          "name": "Example Prototype · Service::General",
+          "parent": "service",
+          "service_code": "GEN.GENERAL"
+        }
+      ],
+      "jobs": [],
+      "macros": [
+        {
+          "actions": [
+            "set_state_closed"
+          ],
+          "key": "resolve",
+          "name": "Example Prototype · Macro · Resolve",
+          "scope": "H"
+        }
+      ],
+      "managed_prefix": "Example Prototype ·",
+      "manifest_key": "example-config-v1",
+      "object_manager": {
+        "activation": "mandatory_provider_maintenance_path",
+        "core_workflows": [
+          {
+            "actions": "show core fields",
+            "context": "agent_create",
+            "key": "agent_create_shared",
+            "match": "role in R and group in H"
+          }
+        ],
+        "group_fields": [],
+        "organization_fields": [],
+        "restart_required": true,
+        "tenant_default": {
+          "default": null,
+          "hidden": true,
+          "no_date_or_datetime": true,
+          "optional": true
+        },
+        "ticket_fields": [
+          {
+            "name": "example_service_code",
+            "options": [
+              "GEN.GENERAL"
+            ],
+            "required_by_workflow": true,
+            "type": "tree_select"
+          }
+        ],
+        "user_fields": []
+      },
+      "organizations": [
+        {
+          "active": true,
+          "class": "customer",
+          "domain_assignment": false,
+          "key": "customers",
+          "name": "Example Prototype · Organization · Customers",
+          "shared": false
+        }
+      ],
+      "overviews": [
+        {
+          "conditions": {
+            "group": "H",
+            "organization": "O",
+            "owner": "current_user",
+            "state": "open_like"
+          },
+          "key": "my_open",
+          "name": "Example Prototype · Overview · My open tickets",
+          "roles": "R"
+        }
+      ],
+      "reference_sets": {
+        "H": "all managed ticket-bearing group keys",
+        "O": "all managed organization keys",
+        "R": "all managed role keys",
+        "S": []
+      },
+      "report_profiles": [
+        {
+          "active": true,
+          "conditions": {
+            "group": "H",
+            "organization": "O"
+          },
+          "key": "volume",
+          "name": "Example Prototype · Report · Volume"
+        }
+      ],
+      "roles": [
+        {
+          "acl": {
+            "full": [
+              "service_general"
+            ]
+          },
+          "key": "service",
+          "name": "Example Prototype · Role · Service"
+        }
+      ],
+      "safety_contract": {
+        "activation_strategy": "create_inactive_then_readback_collision_scan_then_activate",
+        "allow_delete": false,
+        "allow_existing_object_writes": false,
+        "global_surfaces_accepted": [
+          "tag_catalog",
+          "report_profile_catalog",
+          "object_manager_schema",
+          "core_workflow_evaluation"
+        ],
+        "identity_resolution": "create_then_readback_by_manifest_key",
+        "production_group_reference": "forbidden"
+      },
+      "schema_version": "1.0",
+      "tags": [
+        "example/uat"
+      ],
+      "technical_namespace": "example_",
+      "triggers": [
+        {
+          "actions": [
+            "add_tag:example/uat"
+          ],
+          "active": true,
+          "conditions": {
+            "all": [
+              "group in H",
+              "organization in O"
+            ]
+          },
+          "external_effects": false,
+          "key": "mark_uat",
+          "name": "Example Prototype · Trigger · Mark UAT"
+        }
+      ],
+      "uat": {
+        "article_visibility": "internal",
+        "outbound_communication": false,
+        "retention": "close_and_retain",
+        "ticket_count": 1,
+        "title_prefix": "[EXAMPLE-UAT]"
+      },
+      "users": {
+        "agent_constraints": {
+          "no_admin": true,
+          "no_report_permission": true,
+          "notifications": false,
+          "one_managed_role_only": true
+        },
+        "agents": [
+          {
+            "key": "service",
+            "role": "service"
+          }
+        ],
+        "customer_constraints": {
+          "customer_role_only": true,
+          "password_login": false,
+          "pat": false,
+          "saml_identity": false
+        },
+        "customers": [
+          {
+            "key": "customer",
+            "organization": "customers"
+          }
+        ],
+        "email_template": "example.{kind}.{key}@example.invalid"
+      }
+    },
+    "profile": {
+      "display_name": "Reusable minimal service desk example",
+      "identity": {
+        "agent_firstname": "Example",
+        "agent_login_template": "example.agent.{key}",
+        "customer_firstname": "Example",
+        "customer_login_template": "example.customer.{key}",
+        "dummy_only": true,
+        "email_template": "example.{kind}.{key}@example.invalid",
+        "notifications": false
+      },
+      "manifest": "desired-state.json",
+      "offline_only": true,
+      "presentation": {
+        "core_workflow_names": {
+          "agent_create_shared": "Example Prototype · CW · Agent create shared"
+        },
+        "field_labels": {
+          "example_service_code": "Example · Service"
+        },
+        "object_manager_positions": {
+          "Group": {
+            "start": 1900,
+            "step": 10
+          },
+          "Organization": {
+            "start": 1900,
+            "step": 10
+          },
+          "Ticket": {
+            "start": 2200,
+            "step": 10
+          },
+          "User": {
+            "start": 1900,
+            "step": 10
+          }
+        },
+        "option_labels": {
+          "GEN.GENERAL": "General request"
+        }
+      },
+      "profile_key": "example",
+      "schema_version": "1.0",
+      "uat": {
+        "access_matrix": {
+          "seed_keys": [
+            "seed-general"
+          ]
+        },
+        "article_visibility": "internal",
+        "defaults": {
+          "service_code": null
+        },
+        "outbound_communication": false,
+        "retention": "close_and_retain",
+        "scenarios": [
+          {
+            "agent": "service",
+            "customer": "customer",
+            "expected_tags": [
+              "example/uat"
+            ],
+            "group": "service_general",
+            "key": "seed-general",
+            "kind": "seed",
+            "label": "General request",
+            "number": 1
+          }
+        ],
+        "title_prefix": "[EXAMPLE-UAT]"
+      }
+    },
+    "resource_ownership": {
+      "agents:service": "dummy_users_uat",
+      "checklist_templates:standard_intake": "checklists",
+      "core_workflows:agent_create_shared": "core",
+      "customers:customer": "dummy_users_uat",
+      "groups:service": "core",
+      "groups:service_general": "core",
+      "macros:resolve": "macros",
+      "object_manager_fields:example_service_code": "ticket_fields",
+      "organizations:customers": "core",
+      "overviews:my_open": "overviews",
+      "report_profiles:volume": "report_profiles",
+      "roles:service": "core",
+      "tags:example/uat": "access_matrix",
+      "triggers:mark_uat": "triggers",
+      "uat_scenarios:seed-general": "access_matrix"
+    }
+  },
+  "extensions": {},
+  "id": "example-project",
+  "name": "Reusable minimal service desk example",
+  "project_schema_version": "2.0",
+  "target_schema_version": "1.0",
+  "workbook": {
+    "capability_decisions": {
+      "ai": {
+        "completion": "blocked",
+        "delivery": "unsupported",
+        "dependencies": [
+          "identity-security"
+        ],
+        "enabled": false,
+        "risk": "critical"
+      },
+      "branding-ticket-settings": {
+        "completion": "decision_required",
+        "delivery": "guided_manual",
+        "dependencies": [
+          "organization"
+        ],
+        "enabled": false,
+        "risk": "medium"
+      },
+      "calendars-sla": {
+        "completion": "decision_required",
+        "delivery": "guided_manual",
+        "dependencies": [
+          "service-topology"
+        ],
+        "enabled": false,
+        "risk": "high"
+      },
+      "channels-postmaster-signatures": {
+        "completion": "decision_required",
+        "delivery": "guided_manual",
+        "dependencies": [
+          "identity-security"
+        ],
+        "enabled": false,
+        "risk": "high"
+      },
+      "fields-core-workflows": {
+        "completion": "decision_required",
+        "delivery": "guided_manual",
+        "dependencies": [
+          "roles-acl"
+        ],
+        "enabled": true,
+        "risk": "high"
+      },
+      "identity-security": {
+        "completion": "decision_required",
+        "delivery": "guided_manual",
+        "dependencies": [
+          "roles-acl"
+        ],
+        "enabled": false,
+        "risk": "high"
+      },
+      "knowledge-base": {
+        "completion": "decision_required",
+        "delivery": "guided_manual",
+        "dependencies": [
+          "organization"
+        ],
+        "enabled": false,
+        "risk": "medium"
+      },
+      "organization": {
+        "completion": "decision_required",
+        "delivery": "guided_manual",
+        "dependencies": [],
+        "enabled": true,
+        "risk": "medium"
+      },
+      "organizations-customers": {
+        "completion": "ready",
+        "delivery": "automated",
+        "dependencies": [
+          "organization"
+        ],
+        "enabled": true,
+        "risk": "medium"
+      },
+      "overviews-macros-templates-text-modules-checklists": {
+        "completion": "ready",
+        "delivery": "automated",
+        "dependencies": [
+          "roles-acl",
+          "tags"
+        ],
+        "enabled": true,
+        "risk": "medium"
+      },
+      "platform-dr": {
+        "completion": "decision_required",
+        "delivery": "verify_only",
+        "dependencies": [
+          "identity-security"
+        ],
+        "enabled": false,
+        "risk": "critical"
+      },
+      "privacy-retention": {
+        "completion": "decision_required",
+        "delivery": "guided_manual",
+        "dependencies": [
+          "identity-security"
+        ],
+        "enabled": false,
+        "risk": "high"
+      },
+      "roles-acl": {
+        "completion": "ready",
+        "delivery": "automated",
+        "dependencies": [
+          "service-topology"
+        ],
+        "enabled": true,
+        "risk": "high"
+      },
+      "service-topology": {
+        "completion": "ready",
+        "delivery": "automated",
+        "dependencies": [
+          "organization"
+        ],
+        "enabled": true,
+        "risk": "high"
+      },
+      "tags": {
+        "completion": "ready",
+        "delivery": "automated",
+        "dependencies": [],
+        "enabled": true,
+        "risk": "low"
+      },
+      "time-accounting": {
+        "completion": "decision_required",
+        "delivery": "guided_manual",
+        "dependencies": [
+          "roles-acl"
+        ],
+        "enabled": false,
+        "risk": "medium"
+      },
+      "triggers-schedulers-report-profiles": {
+        "completion": "ready",
+        "delivery": "automated",
+        "dependencies": [
+          "tags",
+          "fields-core-workflows"
+        ],
+        "enabled": true,
+        "risk": "high"
+      },
+      "uat-evidence": {
+        "completion": "decision_required",
+        "delivery": "verify_only",
+        "dependencies": [
+          "organizations-customers",
+          "roles-acl"
+        ],
+        "enabled": true,
+        "risk": "medium"
+      },
+      "webhooks-integrations": {
+        "completion": "blocked",
+        "delivery": "unsupported",
+        "dependencies": [
+          "identity-security"
+        ],
+        "enabled": false,
+        "risk": "critical"
+      }
+    },
+    "organization": {
+      "name": "Reusable minimal service desk example"
+    },
+    "policies": {
+      "feature_selection": {
+        "access_matrix": true,
+        "checklists": true,
+        "cross_department_handoff": false,
+        "dummy_users_uat": true,
+        "group_classification": false,
+        "macros": true,
+        "organization_classification": false,
+        "overviews": true,
+        "report_profiles": true,
+        "scheduled_reviews": false,
+        "sensitive_area_handling": false,
+        "ticket_fields": true,
+        "triggers": true,
+        "user_classification": false
+      },
+      "managed_prefix": "Example Prototype ·",
+      "offline_only": true,
+      "role_access": {
+        "service": {
+          "full": [
+            "service_general"
+          ]
+        }
+      },
+      "safety_contract": {
+        "activation_strategy": "create_inactive_then_readback_collision_scan_then_activate",
+        "allow_delete": false,
+        "allow_existing_object_writes": false,
+        "global_surfaces_accepted": [
+          "tag_catalog",
+          "report_profile_catalog",
+          "object_manager_schema",
+          "core_workflow_evaluation"
+        ],
+        "identity_resolution": "create_then_readback_by_manifest_key",
+        "production_group_reference": "forbidden"
+      },
+      "technical_namespace": "example_"
+    },
+    "services": [
+      {
+        "customer_entry_point": false,
+        "key": "service",
+        "kind": "container",
+        "name": "Example Prototype · Service",
+        "parent": null,
+        "restricted": false,
+        "role_access": [],
+        "service_code": null,
+        "synthetic_agents": [],
+        "uat_scenarios": []
+      },
+      {
+        "customer_entry_point": false,
+        "key": "service_general",
+        "kind": "leaf",
+        "name": "Example Prototype · Service::General",
+        "parent": "service",
+        "restricted": false,
+        "role_access": [
+          {
+            "permission": "full",
+            "role": "service"
+          }
+        ],
+        "service_code": "GEN.GENERAL",
+        "synthetic_agents": [
+          "service"
+        ],
+        "uat_scenarios": [
+          "seed-general"
+        ]
+      }
+    ],
+    "uat": {
+      "access_matrix": {
+        "seed_keys": [
+          "seed-general"
+        ]
+      },
+      "article_visibility": "internal",
+      "defaults": {
+        "service_code": null
+      },
+      "outbound_communication": false,
+      "retention": "close_and_retain",
+      "scenarios": [
+        {
+          "agent": "service",
+          "customer": "customer",
+          "expected_tags": [
+            "example/uat"
+          ],
+          "group": "service_general",
+          "key": "seed-general",
+          "kind": "seed",
+          "label": "General request",
+          "number": 1
+        }
+      ],
+      "title_prefix": "[EXAMPLE-UAT]"
+    }
+  }
+}

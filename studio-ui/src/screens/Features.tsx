@@ -3,11 +3,11 @@ import {
   RotateCcw,
   Search,
 } from 'lucide-react'
-import { mutateProject, toggleFeature } from '../project-model'
-import { useStudio } from '../studio-state'
-import { EmptyState, PageHeader, SectionHeading } from '../ui'
+import { resetFeatures, toggleFeature } from '../editor/model'
+import { useStudio } from '../editor/context'
+import { EmptyState, PageHeader, SectionHeading } from '../components/ui'
 import { useState } from 'react'
-import type { FeatureDefinition } from '../types'
+import type { FeatureDefinition } from '../contracts'
 
 export function groupFeatures(features: FeatureDefinition[]): Array<[string, FeatureDefinition[]]> {
   const groups = new Map<string, FeatureDefinition[]>()
@@ -23,28 +23,16 @@ export function Features() {
     catalog,
     selectedFeature,
     catalogError,
-    dispatch,
+    selectFeature,
     updateProject,
   } = useStudio()
+  const { bundle } = project
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All categories')
   const visible = catalog.filter((feature) =>
     (category === 'All categories' || feature.category === category)
     && `${feature.name} ${feature.description}`.toLowerCase().includes(query.toLowerCase()),
   )
-  const reset = () => {
-    let next = mutateProject(project, (draft) => {
-      for (const feature of catalog) {
-        draft.feature_state[feature.id].settings = JSON.parse(
-          JSON.stringify(feature.defaultSettings),
-        ) as typeof draft.feature_state[typeof feature.id]['settings']
-      }
-    })
-    for (const feature of catalog) {
-      next = toggleFeature(next, feature.id, feature.defaultEnabled || feature.locked, catalog)
-    }
-    updateProject(next)
-  }
   return (
     <section className="features-screen">
       <PageHeader
@@ -72,7 +60,7 @@ export function Features() {
             <option key={value}>{value}</option>
           ))}
         </select>
-        <button className="text-button" type="button" onClick={reset}>
+        <button className="text-button" type="button" onClick={() => updateProject(resetFeatures(project, catalog))}>
           <RotateCcw size={16} /> Reset to safe baseline
         </button>
       </div>
@@ -81,15 +69,15 @@ export function Features() {
           <div className="feature-group" key={group}>
             <SectionHeading>{group}</SectionHeading>
             {features.map((feature) => {
-              const enabled = project.feature_state[feature.id].enabled
+              const enabled = bundle.feature_state[feature.id].enabled
               return (
                 <div
                   className={selectedFeature === feature.id ? 'feature-row selected' : 'feature-row'}
-                  onClick={() => dispatch({ type: 'feature:select', id: feature.id })}
+                  onClick={() => selectFeature(feature.id)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault()
-                      dispatch({ type: 'feature:select', id: feature.id })
+                      selectFeature(feature.id)
                     }
                   }}
                   role="group"

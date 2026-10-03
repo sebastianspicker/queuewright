@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/queuewright-editor-compile.schema.json",
+  "title": "Queuewright compact editor compilation response",
+  "description": "Lossless transport projection. Restore bundle from project.bundle and omitted graph node desired values from the plan operation with the same id. Hashes refer to restored canonical artifacts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["representation", "project", "plan", "graph", "hashes", "issues"],
+  "properties": {
+    "representation": {"const": "editor-1"},
+    "project": {"$ref": "queuewright-project-v2.schema.json"},
+    "plan": {"type": "object", "required": ["operations", "plan_hash"], "properties": {
+      "operations": {"type": "array", "items": {"type": "object", "required": ["id", "desired_state"], "properties": {"id": {"type": "string"}, "desired_state": {}}}},
+      "plan_hash": {"$ref": "#/$defs/hash"}
+    }},
+    "graph": {"type": "object", "additionalProperties": false, "required": ["nodes", "graph_hash"], "properties": {
+      "graph_hash": {"$ref": "#/$defs/hash"},
+      "nodes": {"type": "array", "items": {"type": "object", "required": ["id", "resource_kind", "logical_key", "dependencies", "delivery", "risk", "owner", "verification", "rollback"], "properties": {"id": {"type": "string"}, "desired": {}}}}
+    }},
+    "hashes": {"type": "object", "additionalProperties": {"$ref": "#/$defs/hash"}, "required": ["profile", "manifest", "plan", "project", "graph"]},
+    "issues": {"type": "array", "maxItems": 0}
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}

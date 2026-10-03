@@ -3,27 +3,23 @@
 from __future__ import annotations
 
 import argparse
-import json
 import tempfile
 from pathlib import Path
 
-from .compiler import compile_loaded_profile
-from .errors import ConfigurationError
-from .profile import (
+from .configuration import (
     is_forbidden_local_path,
     load_profile,
     validate_loaded_profile,
     validate_profile,
 )
+from .contracts.json import canonical_json
+from .errors import ConfigurationError
+from .examples import example_path
+from .planning.compiler import compile_loaded_profile
 
 
 def _dump(value: object) -> str:
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
+    return canonical_json(value)
 
 
 def _write_plan(
@@ -72,6 +68,7 @@ def _parser() -> argparse.ArgumentParser:
     plan.add_argument("profile")
     plan.add_argument("--output")
     commands.add_parser("self-test")
+    commands.add_parser("studio")
     return parser
 
 
@@ -80,11 +77,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "self-test":
-            root = Path(__file__).resolve().parent.parent
-            validate_profile(root / "studio/templates/university")
-            profiles = root / "profiles"
-            validate_profile(profiles / "example")
+            validate_profile(example_path("university"))
+            validate_profile(example_path("minimal"))
             print("self-test: ok")
+            return 0
+        if args.command == "studio":
+            from .studio import serve
+
+            serve()
             return 0
         loaded = load_profile(args.profile)
         result = (

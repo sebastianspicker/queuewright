@@ -7,13 +7,13 @@ import json
 import unittest
 from pathlib import Path
 
-from queuewright.compiler import compile_loaded_profile
+from queuewright.planning import compile_loaded_profile
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def example_loaded() -> dict[str, object]:
-    root = ROOT / "profiles" / "example"
+    root = ROOT / "queuewright" / "examples" / "minimal"
     return {
         "profile": json.loads((root / "profile.json").read_text(encoding="utf-8")),
         "manifest": json.loads((root / "desired-state.json").read_text(encoding="utf-8")),
