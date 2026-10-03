@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import http.client
 import json
+import socket
 import threading
 import unittest
 from io import BytesIO
@@ -55,6 +56,23 @@ class JsonBoundaryTests(unittest.TestCase):
                 self.assertIsNone(value)
                 self.assertEqual((failure[0], failure[1]["code"]), (400, "invalid_json"))
 
+    def test_content_length_requires_plain_decimal_digits(self):
+        for raw_length in ("+2", "1_0", "-1", ""):
+            with self.subTest(raw_length=raw_length):
+                value, failure = read_json_body(
+                    {"Content-Type": "application/json", "Content-Length": raw_length},
+                    BytesIO(b"{}"),
+                    "application/json",
+                    2 * 1024 * 1024,
+                    lambda code, path, message: {
+                        "code": code,
+                        "path": path,
+                        "message": message,
+                    },
+                )
+                self.assertIsNone(value)
+                self.assertEqual((failure[0], failure[1]["code"]), (411, "length_required"))
+
     def test_direct_service_rejects_depth_before_copying(self):
         project = json.loads((ROOT / 'queuewright/examples/minimal/project-v2.json').read_text())
         project["extensions"] = {"nested": nested(2000)}
@@ -95,6 +113,17 @@ class EditorRepresentationTests(unittest.TestCase):
 
 
 class HttpLimitsTests(unittest.TestCase):
+    @staticmethod
+    def _raw_request(port: int, request: bytes) -> bytes:
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as connection:
+            connection.sendall(request)
+            response = bytearray()
+            while True:
+                chunk = connection.recv(64 * 1024)
+                if not chunk:
+                    return bytes(response)
+                response.extend(chunk)
+
     def test_malformed_limits_return_json_and_service_remains_usable(self):
         server = create_server(port=0)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -112,6 +141,57 @@ class HttpLimitsTests(unittest.TestCase):
                 self.assertEqual(response.status, 200)
                 self.assertEqual(json.loads(response.read())["status"], "ok")
                 connection.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
+    def test_rejected_requests_close_before_unread_bytes_can_be_reparsed(self):
+        server = create_server(port=0)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        host = f"127.0.0.1:{server.server_port}"
+        smuggled = (
+            f"GET /api/v1/health HTTP/1.1\r\nHost: {host}\r\n\r\n".encode()
+        )
+        requests = {
+            "invalid origin": (
+                f"POST /api/v2/compile HTTP/1.1\r\nHost: {host}\r\n"
+                "Origin: https://attacker.invalid\r\nContent-Type: application/json\r\n"
+                f"Content-Length: {len(smuggled)}\r\n\r\n"
+            ).encode()
+            + smuggled,
+            "duplicate length": (
+                f"POST /api/v2/compile HTTP/1.1\r\nHost: {host}\r\n"
+                "Content-Type: application/json\r\nContent-Length: 1\r\n"
+                f"Content-Length: {len(smuggled)}\r\n\r\n"
+            ).encode()
+            + smuggled,
+            "duplicate host": (
+                f"POST /api/v2/compile HTTP/1.1\r\nHost: {host}\r\n"
+                f"Host: {host}\r\nContent-Type: application/json\r\n"
+                f"Content-Length: {len(smuggled)}\r\n\r\n"
+            ).encode()
+            + smuggled,
+            "transfer encoding": (
+                f"POST /api/v2/compile HTTP/1.1\r\nHost: {host}\r\n"
+                "Content-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n"
+            ).encode()
+            + smuggled,
+            "get body": (
+                f"GET /api/v1/health HTTP/1.1\r\nHost: {host}\r\n"
+                f"Content-Length: {len(smuggled)}\r\n\r\n"
+            ).encode()
+            + smuggled,
+        }
+        try:
+            for label, request in requests.items():
+                with self.subTest(label=label):
+                    response = self._raw_request(server.server_port, request)
+                    self.assertEqual(response.count(b"HTTP/1.1"), 1)
+                    self.assertIn(b"HTTP/1.1 400", response)
+                    self.assertIn(b"Connection: close", response)
+                    self.assertNotIn(b"HTTP/1.1 200", response)
         finally:
             server.shutdown()
             server.server_close()

@@ -10,6 +10,7 @@ from ..configuration import FIELD_COLLECTIONS, load_profile, validate_loaded_pro
 from ..contracts.json import canonical_sha256
 from ..errors import ConfigurationError
 from .inventory import manifest_inventory
+from .limits import validate_compilation_budget
 
 
 def _operation(
@@ -180,6 +181,7 @@ def compile_validated_profile(
     """Compile an internally validated profile snapshot."""
     bundle = loaded["profile"]
     manifest = loaded["manifest"]
+    validate_compilation_budget(loaded)
     operations = _dependency_order(_build_operations(manifest))
     inventory = _inventory(bundle, manifest)
     plan = {

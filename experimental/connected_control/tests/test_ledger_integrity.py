@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import stat
 import tempfile
 import threading
 import time
@@ -327,6 +328,45 @@ class LedgerIntegrityTests(unittest.TestCase):
                 with self.assertRaisesRegex(ControlError, "ledger path"):
                     ledger.audit("run", "event", {"safe": True})
                 ledger.close()
+
+    def test_chained_symlink_target_is_validated_before_victim_is_touched(self) -> None:
+        unsafe = Path(self.directory.name, "shared")
+        victim_directory = Path(self.directory.name, "victim")
+        unsafe.mkdir()
+        victim_directory.mkdir()
+        os.chmod(unsafe, 0o777)
+        victim = victim_directory / "victim.sqlite3"
+        connection = sqlite3.connect(victim)
+        connection.execute("CREATE TABLE important (value TEXT NOT NULL)")
+        connection.execute("INSERT INTO important VALUES ('preserve')")
+        connection.commit()
+        connection.close()
+        os.chmod(victim, 0o640)
+        (unsafe / "redirect").symlink_to(victim_directory, target_is_directory=True)
+        entry = Path(self.directory.name, "entry")
+        entry.symlink_to(unsafe / "redirect", target_is_directory=True)
+
+        with self.assertRaisesRegex(ControlError, "ancestor is not trusted"):
+            Ledger(entry / victim.name, self.provider)
+
+        self.assertEqual(stat.S_IMODE(victim.stat().st_mode), 0o640)
+        connection = sqlite3.connect(victim)
+        try:
+            self.assertEqual(
+                connection.execute("SELECT value FROM important").fetchone()[0],
+                "preserve",
+            )
+            self.assertEqual(
+                {
+                    row[0]
+                    for row in connection.execute(
+                        "SELECT name FROM sqlite_schema WHERE type='table'"
+                    )
+                },
+                {"important"},
+            )
+        finally:
+            connection.close()
 
     def test_memory_database_and_legacy_schema(self) -> None:
         memory = Ledger(":memory:", InMemoryKeyProvider(b"m" * 32))

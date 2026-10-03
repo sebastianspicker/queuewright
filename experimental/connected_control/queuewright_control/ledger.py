@@ -6,6 +6,7 @@ import hashlib
 import os
 import sqlite3
 import stat
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
@@ -81,7 +82,7 @@ class Ledger(LedgerAuditMixin, LedgerRunsMixin, LedgerLockMixin):
         self._transaction: _TransactionState | None = None
         self._path_identity: tuple[int, int] | None = None
         self._standard_schema_signature = self._pristine_schema_signature()
-        self._prepare_path(Path(self.path))
+        self.path = str(self._prepare_path(Path(self.path)))
         self.db = self._open_database()
         self._expected_journal_mode = str(
             self.db.execute("PRAGMA journal_mode").fetchone()[0]
@@ -100,23 +101,147 @@ class Ledger(LedgerAuditMixin, LedgerRunsMixin, LedgerLockMixin):
         return database
 
     @staticmethod
-    def _prepare_path(path: Path) -> None:
+    def _prepare_path(path: Path) -> Path:
         if str(path) == ":memory:":
-            return
-        parent = path.parent
-        Ledger._prepare_parent(parent)
-        if path.exists() or path.is_symlink():
-            Ledger._secure_existing_path(path)
-            return
-        Ledger._create_private_path(path)
+            return path
+
+        if path.name in {"", ".", ".."}:
+            raise ControlError("ledger_unsafe", "/ledger", "ledger path is invalid")
+        absolute = path if path.is_absolute() else Path.cwd() / path
+        canonical_parent = Ledger._resolve_trusted_parent(absolute.parent)
+        canonical = canonical_parent / absolute.name
+        existing = Ledger._lstat(canonical)
+        if existing is not None and stat.S_ISLNK(existing.st_mode):
+            raise ControlError(
+                "ledger_unsafe", "/ledger", "ledger must not be a symbolic link"
+            )
+        Ledger._prepare_parent(canonical.parent)
+        if existing is not None:
+            Ledger._secure_existing_path(canonical)
+        else:
+            Ledger._create_private_path(canonical)
+        return canonical
+
+    @staticmethod
+    def _lstat(path: Path) -> os.stat_result | None:
+        try:
+            return path.lstat()
+        except FileNotFoundError:
+            return None
+        except OSError as error:
+            raise ControlError(
+                "ledger_unsafe", "/ledger", "ledger path is unavailable"
+            ) from error
+
+    @staticmethod
+    def _validate_directory(path: Path, details: os.stat_result) -> None:
+        trusted_owners = {0, os.geteuid()}
+        mode = stat.S_IMODE(details.st_mode)
+        trusted_sticky_directory = (
+            details.st_uid == 0
+            and bool(details.st_mode & stat.S_ISVTX)
+            and stat.S_ISDIR(details.st_mode)
+        )
+        if (
+            not stat.S_ISDIR(details.st_mode)
+            or details.st_uid not in trusted_owners
+            or (mode & 0o022 and not trusted_sticky_directory)
+        ):
+            raise ControlError(
+                "ledger_unsafe",
+                "/ledger",
+                f"ledger ancestor is not trusted: {path}",
+            )
+
+    @staticmethod
+    def _resolve_trusted_parent(parent: Path) -> Path:
+        """Resolve a parent while validating every directory and symlink hop."""
+        current = Path(parent.anchor)
+        root_details = Ledger._lstat(current)
+        if root_details is None:
+            raise ControlError("ledger_unsafe", "/ledger", "ledger root is unavailable")
+        Ledger._validate_directory(current, root_details)
+        pending = deque(parent.parts[1:])
+        followed = 0
+        while pending:
+            component = pending.popleft()
+            if component in {"", "."}:
+                continue
+            if component == "..":
+                current = current.parent
+                continue
+            candidate = current / component
+            details = Ledger._lstat(candidate)
+            if details is None:
+                current = candidate
+                continue
+            if stat.S_ISLNK(details.st_mode):
+                if details.st_uid not in {0, os.geteuid()}:
+                    raise ControlError(
+                        "ledger_unsafe",
+                        "/ledger",
+                        f"ledger ancestor symlink is not trusted: {candidate}",
+                    )
+                if followed >= 40:
+                    raise ControlError(
+                        "ledger_unsafe", "/ledger", "ledger ancestor symlink loop"
+                    )
+                followed += 1
+                try:
+                    target = Path(os.readlink(candidate))
+                except OSError as error:
+                    raise ControlError(
+                        "ledger_unsafe",
+                        "/ledger",
+                        f"ledger ancestor symlink is unavailable: {candidate}",
+                    ) from error
+                remainder = list(pending)
+                if target.is_absolute():
+                    current = Path(target.anchor)
+                    target_root = Ledger._lstat(current)
+                    if target_root is None:
+                        raise ControlError(
+                            "ledger_unsafe", "/ledger", "ledger root is unavailable"
+                        )
+                    Ledger._validate_directory(current, target_root)
+                    target_parts = target.parts[1:]
+                else:
+                    target_parts = target.parts
+                pending = deque((*target_parts, *remainder))
+                continue
+            Ledger._validate_directory(candidate, details)
+            current = candidate
+        return current
 
     @staticmethod
     def _prepare_parent(parent: Path) -> None:
-        if not parent.exists():
-            parent.mkdir(mode=0o700, parents=True)
-        if parent.is_symlink() or not parent.is_dir():
-            raise ControlError("ledger_unsafe", "/ledger", "ledger parent is unsafe")
-        parent_details = parent.stat()
+        current = Path(parent.anchor)
+        root_details = Ledger._lstat(current)
+        if root_details is None:
+            raise ControlError("ledger_unsafe", "/ledger", "ledger root is unavailable")
+        Ledger._validate_directory(current, root_details)
+        for component in parent.parts[1:]:
+            current /= component
+            details = Ledger._lstat(current)
+            if details is None:
+                try:
+                    current.mkdir(mode=0o700)
+                except FileExistsError:
+                    pass
+                except OSError as error:
+                    raise ControlError(
+                        "ledger_unsafe", "/ledger", "ledger parent could not be created"
+                    ) from error
+                details = Ledger._lstat(current)
+                if details is None:
+                    raise ControlError(
+                        "ledger_unsafe", "/ledger", "ledger parent is unavailable"
+                    )
+            Ledger._validate_directory(current, details)
+
+        parent_details = Ledger._lstat(parent)
+        if parent_details is None:
+            raise ControlError("ledger_unsafe", "/ledger", "ledger parent is unavailable")
         if (
             parent_details.st_uid != os.geteuid()
             or stat.S_IMODE(parent_details.st_mode) & 0o022

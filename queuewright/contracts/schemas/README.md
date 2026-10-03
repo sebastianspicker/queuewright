@@ -28,6 +28,12 @@ HTTP requests exceeding parser numeric or nesting limits receive an
 `invalid_json` error. This resource limit is enforced in Python; the recursive
 JSON Schemas describe value shape.
 
+Python compilation additionally enforces fixed budgets of 10,000 operations,
+100,000 dependency references, 8 MiB of dependency identifiers, 1,000,000
+service-derivation membership checks, and an 8 MiB derived service projection.
+These expansion limits are semantic runtime constraints rather than JSON
+Schema shape constraints.
+
 The active schemas describe offline inputs and compiler output. The connection schema belongs only
 to the isolated experimental connected-control package and is not shipped in
 the active wheel.

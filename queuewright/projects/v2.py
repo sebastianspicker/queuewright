@@ -8,6 +8,8 @@ from typing import Any, NamedTuple
 
 from ..configuration import FIELD_COLLECTIONS
 from ..contracts.safety import SafeJsonError, validate_safe_json
+from ..errors import ConfigurationError
+from ..planning import validate_compilation_budget
 from .bundle import (
     BUNDLE_FIELDS,
     PROJECT_FIELDS,
@@ -91,6 +93,15 @@ def _validate_bundle(
         "resource_ownership": ownership,
         "feature_state": feature_state,
     }, summary
+
+
+def _validate_compilation_budget(bundle: dict[str, Any]) -> None:
+    try:
+        validate_compilation_budget(
+            {"profile": bundle["profile"], "manifest": bundle["manifest"]}
+        )
+    except ConfigurationError as error:
+        raise ProjectError(str(error)) from error
 
 
 def _workflow_entry_groups(workflow: dict[str, Any], group_keys: set[str]) -> set[str]:
@@ -362,6 +373,7 @@ def validate_v2_snapshot(project: Any) -> ValidatedV2Project:
     require_matching_versions(
         project["target_schema_version"], bundle["profile"], bundle["manifest"]
     )
+    _validate_compilation_budget(bundle)
     if not isinstance(project["extensions"], dict):
         raise ProjectError("extensions must be an object")
     _safe(project["extensions"], "extensions")
@@ -425,6 +437,7 @@ def migrate_v1_snapshot(snapshot: V1Snapshot) -> dict[str, Any]:
 def _migrated(
     project: dict[str, Any], bundle: dict[str, Any], capabilities: list[dict[str, Any]]
 ) -> dict[str, Any]:
+    _validate_compilation_budget(bundle)
     name = project["name"]
     return {
         "project_schema_version": PROJECT_SCHEMA_VERSION,

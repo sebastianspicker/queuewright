@@ -47,18 +47,17 @@ def read_json_body(
 def _content_length(
     raw_length: str | None, max_body_bytes: int, error: Any
 ) -> tuple[int, tuple[int, dict[str, Any]] | None]:
-    try:
-        length = int(raw_length) if raw_length is not None else -1
-    except ValueError:
-        length = -1
-    if length < 0:
+    if raw_length is None or not raw_length.isascii() or not raw_length.isdigit():
         return 0, (
             411,
             error("length_required", "Content-Length", "Content-Length is required"),
         )
-    if length > max_body_bytes:
+    normalized_length = raw_length.lstrip("0") or "0"
+    maximum = str(max_body_bytes)
+    if (len(normalized_length), normalized_length) > (len(maximum), maximum):
         return 0, (
             413,
             error("body_too_large", "body", f"request body exceeds {max_body_bytes} bytes"),
         )
+    length = int(normalized_length)
     return length, None

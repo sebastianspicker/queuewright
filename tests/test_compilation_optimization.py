@@ -14,6 +14,7 @@ from queuewright.configuration import load_profile, validate_loaded_profile
 from queuewright.errors import ConfigurationError
 from queuewright.planning import compile_loaded_profile
 from queuewright.planning import compiler as planning_compiler
+from queuewright.planning import limits as planning_limits
 from queuewright.planning.compiler import _dependency_order
 from queuewright.projects import bundle as project_bundle
 from queuewright.projects import compile_v2_project
@@ -130,6 +131,75 @@ class CompilationOptimizationTests(unittest.TestCase):
             compile_loaded_profile({"profile": {}, "manifest": {}})
         with self.assertRaisesRegex(ConfigurationError, "project must contain exactly"):
             compile_v2_project({"project_schema_version": "2.0"})
+
+    def test_dependency_fanout_is_rejected_before_operations_are_built(self) -> None:
+        loaded = _loaded_example("minimal")
+        manifest = loaded["manifest"]  # type: ignore[assignment]
+        for index in range(316):
+            manifest["tags"].append(f"example/generated-{index:03d}")  # type: ignore[index]
+            manifest["macros"].append(  # type: ignore[index]
+                {
+                    "actions": ["set_state_closed"],
+                    "key": f"generated_{index:03d}",
+                    "name": f"Example Prototype · Generated Macro {index:03d}",
+                    "scope": "H",
+                }
+            )
+
+        with (
+            patch.object(planning_compiler, "_build_operations") as build_operations,
+            self.assertRaisesRegex(ConfigurationError, "100000 dependencies"),
+        ):
+            compile_loaded_profile(loaded)  # type: ignore[arg-type]
+        build_operations.assert_not_called()
+
+        status, error = StudioService().dispatch("POST", "/api/v2/compile", loaded)
+        self.assertEqual((status, error["code"]), (422, "invalid_project"))
+        self.assertIn("100000 dependencies", error["message"])
+
+    def test_project_derivation_budget_is_checked_before_service_expansion(self) -> None:
+        project = _project_example("minimal")
+        with (
+            patch.object(planning_limits, "MAX_DERIVED_SERVICE_CHECKS", 1),
+            patch("queuewright.projects.v2.derived_services") as derive_services,
+            self.assertRaisesRegex(ConfigurationError, "membership checks"),
+        ):
+            compile_v2_project(project)
+        derive_services.assert_not_called()
+
+    def test_repeated_agent_identifier_bytes_are_bounded_before_projection(self) -> None:
+        loaded = _loaded_example("minimal")
+        manifest = loaded["manifest"]  # type: ignore[assignment]
+        long_agent = "agent_" + "a" * 110_000
+        manifest["users"]["agents"][0]["key"] = long_agent  # type: ignore[index]
+        loaded["profile"]["uat"]["scenarios"][0]["agent"] = long_agent  # type: ignore[index]
+        additional_groups = []
+        for index in range(80):
+            key = f"generated_{index:03d}"
+            additional_groups.append(key)
+            manifest["groups"].append(  # type: ignore[index]
+                {
+                    "active": True,
+                    "key": key,
+                    "kind": "leaf",
+                    "name": f"Example Prototype · Generated {index:03d}",
+                    "parent": "service",
+                    "service_code": f"GEN.{index:03d}",
+                }
+            )
+        manifest["roles"][0]["acl"]["full"].extend(additional_groups)  # type: ignore[index]
+        validate_loaded_profile(loaded)  # type: ignore[arg-type]
+
+        with (
+            patch.object(planning_compiler, "_build_operations") as build_operations,
+            self.assertRaisesRegex(ConfigurationError, "service projection"),
+        ):
+            compile_loaded_profile(loaded)  # type: ignore[arg-type]
+        build_operations.assert_not_called()
+
+        status, error = StudioService().dispatch("POST", "/api/v2/compile", loaded)
+        self.assertEqual((status, error["code"]), (422, "invalid_project"))
+        self.assertIn("service projection", error["message"])
 
     def test_profile_loader_bounds_depth_and_long_integer_parse_errors(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

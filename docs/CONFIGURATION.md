@@ -57,6 +57,12 @@ and orchestration in `validation.py`. Plans are compiled by
 Validation stops at an invalid contract. A symbolic plan describes ordered
 operations but does not execute them.
 
+Compilation also rejects bundles whose expanded representation would exceed
+10,000 operations, 100,000 dependency references, 8 MiB of dependency
+identifiers, 1,000,000 service-derivation membership checks, or an 8 MiB
+derived service projection. These fixed budgets are calculated before the
+compiler constructs repeated dependency lists or service projections.
+
 ## Create a bundle
 
 Copy `queuewright/examples/university/`, replace its portable identifiers,

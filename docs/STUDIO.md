@@ -60,7 +60,10 @@ their own `desired` values. Hashes refer to the complete canonical artifacts,
 and the client restores those artifacts before presenting or exporting them.
 The packaged `queuewright-editor-compile.schema.json` describes this response.
 Invalid JSON and parser numeric or nesting limits return a structured HTTP 400
-`invalid_json` error.
+`invalid_json` error. Ambiguous HTTP message framing is rejected and the
+connection is closed before unread bytes can be interpreted as another
+request. Valid bundles that exceed the documented compilation budgets return
+a structured HTTP 422 response.
 
 ## Workflow and project formats
 
