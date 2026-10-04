@@ -26,7 +26,7 @@ private_paths=(
 )
 
 publishable_paths=(
-  token-policy.md .env.example .npmrc.example tests/test_probe.py
+  token-policy.md .env.example .npmrc.example
   studio-ui/src/probe.ts
 )
 

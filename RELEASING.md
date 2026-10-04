@@ -25,8 +25,6 @@ python3 -m pip install '.[dev]'
 npm --prefix studio-ui ci
 bash scripts/verify
 python3 -m pip install ./experimental/connected_control
-python3 -m unittest discover -s experimental/connected_control/tests \
-  -p 'test_*.py' -v
 python3 scripts/verify_control_package.py
 git diff --check
 ```

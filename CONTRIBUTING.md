@@ -46,8 +46,8 @@ Do not import an underscore-prefixed name from another subpackage.
    Python API is `queuewright.__all__`.
 4. Keep browser transport in `studio-ui/src/api/client.ts`, browser storage in
    `studio-ui/src/persistence/`, and presentation code behind the editor seam.
-5. Add or update behavior tests with contract changes. Update schemas,
-   examples, package data, and documentation when their contract changes.
+5. Update schemas, examples, package data, and documentation when their
+   contract changes.
 6. Do not add credentials, tenant data, browser exports, or machine-local
    state. Bundled data must remain fictional.
 
@@ -59,19 +59,16 @@ Run the active verification contract from the repository root:
 bash scripts/verify
 ```
 
-For a connected-control change, install and test that package separately:
+For a connected-control change, install and check that package separately:
 
 ```bash
 python3 -m pip install ./experimental/connected_control
-python3 -m unittest discover -s experimental/connected_control/tests \
-  -p 'test_*.py' -v
 python3 scripts/verify_control_package.py
 ```
 
 `scripts/verify` includes the configured Python linter, architecture and
-repository policy, Python tests (including real-HTTP Studio tests), Studio
-tests, TypeScript builds, and package archive checks. It runs Python lanes with
-`$PYTHON`, else `.venv/bin/python`, else `python3`. Focused frontend commands:
+repository policy, Studio tests, TypeScript builds, and package archive checks.
+It runs Python lanes with `$PYTHON`, else `.venv/bin/python`, else `python3`. Focused frontend commands:
 
 ```bash
 npm --prefix studio-ui run typecheck

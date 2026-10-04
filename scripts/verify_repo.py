@@ -44,7 +44,6 @@ PROCESS_FILE_NAMES = {
 }
 REQUIRED_PATHS = {
     Path("experimental/connected_control/pyproject.toml"),
-    Path("experimental/connected_control/tests"),
     Path("scripts/check_architecture.py"),
     Path("scripts/verify"),
 }

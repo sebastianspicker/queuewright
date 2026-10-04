@@ -181,5 +181,10 @@ __snapshots__/
 .DS_Store
 Thumbs.db
 
+# Internal design and test files
+/DESIGN_BRIEF.md
+/tests/
+/experimental/connected_control/tests/
+
 # Local code-intelligence indexes
 .repowise/

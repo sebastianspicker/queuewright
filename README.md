@@ -92,8 +92,7 @@ The complete active-product gate is:
 bash scripts/verify
 ```
 
-It runs Ruff, architecture policy, Python self-tests and unit tests (including
-real-HTTP Studio tests), repository and ignore policy, Studio tests and builds
+It runs Ruff, architecture policy, Python self-tests, repository and ignore policy, Studio tests and builds
 (the build type-checks), and Python package archive validation. It uses
 `$PYTHON`, else `.venv/bin/python`, else `python3`. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for the connected-control lane and focused

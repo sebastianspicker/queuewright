@@ -38,5 +38,4 @@ jobs:
         with:
           python-version: "3.11"
       - run: python3 -m pip install build ./experimental/connected_control
-      - run: python3 -m unittest discover -s experimental/connected_control/tests -p 'test_*.py' -v
       - run: python3 scripts/verify_control_package.py

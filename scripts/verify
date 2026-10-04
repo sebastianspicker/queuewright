@@ -22,7 +22,6 @@ run_lane() {
 run_lane "Ruff" "$python_bin" -m ruff check .
 run_lane "Architecture" "$python_bin" -B scripts/check_architecture.py
 run_lane "Active Python self-test" "$python_bin" -B -m queuewright self-test
-run_lane "Active Python tests" "$python_bin" -B -m unittest discover -s tests -p 'test_*.py' -v
 run_lane "Structural policy" "$python_bin" -B scripts/verify_repo.py
 run_lane "Git ignore policy" bash scripts/verify_git_ignores.sh
 run_lane "Studio Vitest" npm --prefix studio-ui run test

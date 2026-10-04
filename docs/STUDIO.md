@@ -160,6 +160,4 @@ npm --prefix studio-ui run build
 npm --prefix studio-ui run build:demo
 ```
 
-Real-HTTP API behavior is covered by `StudioHTTPTests` in
-`tests/test_queuewright_studio.py`, which replaced the former smoke script. The
-complete active gate is `bash scripts/verify`.
+The complete active gate is `bash scripts/verify`.

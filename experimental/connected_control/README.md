@@ -7,16 +7,14 @@ loopback dispatcher.
 
 It has no console entry point, product integration, default network transport,
 or Zammad adapter. The active Queuewright CLI, API, and Studio client do not
-import it. Unit tests demonstrate the primitives with injected transports; they
-do not demonstrate tenant operation.
+import it. The primitives use injected transports and do not demonstrate tenant
+operation.
 
 The package requires Python 3.11 or newer and pins `cryptography==50.0.2`.
-Install and test it from the repository root:
+Install it from the repository root:
 
 ```bash
 python3 -m pip install ./experimental/connected_control
-python3 -m unittest discover -s experimental/connected_control/tests \
-  -p 'test_*.py' -v
 ```
 
 The ledger fully authenticates the audit chain and replays its derived

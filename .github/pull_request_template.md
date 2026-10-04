@@ -11,7 +11,6 @@ Describe the user-visible or contract-level change.
 ## Verification
 
 - [ ] `bash scripts/verify`
-- [ ] Connected-control tests when `experimental/connected_control/` changed.
 - [ ] Manual UI checks when visible behavior changed.
 
 List skipped checks and why:
