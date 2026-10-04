@@ -10,7 +10,7 @@ or Zammad adapter. The active Queuewright CLI, API, and Studio client do not
 import it. Unit tests demonstrate the primitives with injected transports; they
 do not demonstrate tenant operation.
 
-The package requires Python 3.11 or newer and pins `cryptography==50.0.0`.
+The package requires Python 3.11 or newer and pins `cryptography==50.0.2`.
 Install and test it from the repository root:
 
 ```bash
