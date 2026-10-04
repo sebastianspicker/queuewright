@@ -105,7 +105,7 @@ security procedures are in [RELEASING.md](RELEASING.md) and
 
 ## Static demo
 
-The [Studio demo](https://sebastianspicker.github.io/queuewright/) is a
+The [Studio demo](https://sebastianspicker.github.io/queuewright-zammad/) is a
 client-only GitHub Pages build. It uses bundled fictional data and has no API,
 persistence, tenant connection, or configuration-apply capability.
 

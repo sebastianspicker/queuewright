@@ -44,7 +44,7 @@ npm --prefix studio-ui run build:demo
 
 `typecheck` runs `tsc -b`, which also type-checks tests through
 `tsconfig.test.json`. `build` performs the same TypeScript build before Vite.
-`build:demo` sets `VITE_STATIC_DEMO=true`, uses the `/queuewright/` base
+`build:demo` sets `VITE_STATIC_DEMO=true`, uses the `/queuewright-zammad/` base
 path, and produces a client-only build from bundled fictional data. The static
 demo has no API or browser persistence.
 
